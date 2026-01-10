@@ -60,7 +60,20 @@ Please provide:
 
 4. STRENGTH HIGHLIGHTS: Point out resume elements that strongly match the job requirements.
 
-5. READY-TO-USE BULLET POINTS: For each major experience/role on the resume, write 3 optimized bullet points that are tailored to this specific job posting. These should be ready to copy and paste directly into the resume. Use strong action verbs, quantify achievements where possible, and incorporate relevant keywords from the job posting. Format them clearly so they can be easily copied.
+5. READY-TO-USE BULLET POINTS: For each major experience/role on the resume, rewrite the existing bullet points to better align with this job posting. 
+
+**CRITICAL INSTRUCTIONS FOR BULLET POINTS:**
+- DO NOT invent or add responsibilities, achievements, or metrics that are not already present in the original resume
+- ONLY modify the existing bullet points by:
+  * Replacing synonyms with keywords from the job posting (e.g., change "managed" to "led" if the job posting uses "led")
+  * Reordering information to emphasize aspects most relevant to the job posting
+  * Slightly rewording for clarity or impact while maintaining the same core meaning
+- Keep the same number of bullet points as the original resume for each role
+- Preserve all specific numbers, metrics, technologies, and facts from the original resume exactly as written
+- If a bullet point already matches well, keep it nearly identical with only minor keyword adjustments
+- Do NOT add new accomplishments, projects, or responsibilities that weren't in the original resume
+
+Format the bullet points clearly under each role name so they can be easily copied.
 
 Format your response with clear sections and actionable recommendations.`
       }]
