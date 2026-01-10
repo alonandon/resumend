@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, FileText, Briefcase, Loader2, CheckCircle, AlertCircle, Key, Copy, Check } from 'lucide-react';
+import { Upload, FileText, Briefcase, Loader2, CheckCircle, AlertCircle, Key, Copy, Check, Mail } from 'lucide-react';
 
 export default function ResumeOptimizer() {
   const [resumeFile, setResumeFile] = useState(null);
@@ -186,6 +186,18 @@ export default function ResumeOptimizer() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">ResuMend</h1>
           <p className="text-gray-600">AI-powered resume tailoring for your dream job</p>
+        </div>
+
+        {/* How It Works */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+          <h3 className="text-lg font-semibold text-gray-800 mb-3">How it works:</h3>
+          <ol className="list-decimal list-inside space-y-2 text-gray-600">
+            <li>Upload your resume PDF or paste your resume text</li>
+            <li>Either paste a job posting URL and click "Fetch", OR paste the job description text directly</li>
+            <li>Click "Optimize Resume" to get AI-powered recommendations</li>
+            <li>Review keyword alignments, content improvements, and ready-to-copy bullet points</li>
+            <li>Use the copy buttons to grab optimized text for your resume</li>
+          </ol>
         </div>
 
         <div className="grid md:grid-cols-2 gap-6 mb-8">
@@ -507,22 +519,29 @@ export default function ResumeOptimizer() {
           </div>
         )}
 
-        {/* Instructions */}
-        {!results && !processing && (
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-3">How it works:</h3>
-            <ol className="list-decimal list-inside space-y-2 text-gray-600">
-              <li>Upload your resume PDF or paste your resume text</li>
-              <li>Either paste a job posting URL and click "Fetch", OR paste the job description text directly</li>
-              <li>Click "Optimize Resume" to get AI-powered recommendations</li>
-              <li>Review keyword alignments, content improvements, and ready-to-copy bullet points</li>
-              <li>Use the copy buttons to grab optimized text for your resume</li>
-            </ol>
-            <p className="mt-4 text-sm text-gray-500">
-              Powered by Claude AI. All analysis is done securely and your data is never stored.
-            </p>
+        {/* Instructions removed - moved to top */}
+
+        {/* Contact Box */}
+        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-md p-6 border-2 border-blue-200">
+          <div className="flex items-start gap-4">
+            <div className="bg-blue-600 rounded-full p-3">
+              <Mail className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-800 mb-2">Have Suggestions?</h3>
+              <p className="text-gray-600 mb-3">
+                We'd love to hear your feedback and ideas to improve ResuMend! 
+              </p>
+              <a 
+                href="mailto:resumendapp@gmail.com?subject=ResuMend Suggestion"
+                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
+              >
+                <Mail className="w-4 h-4" />
+                Contact Us
+              </a>
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
