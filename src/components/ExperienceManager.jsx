@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Briefcase } from 'lucide-react';
+import { Plus, Trash2, Briefcase, Edit } from 'lucide-react';
 import ResumeImport from './ResumeImport';
 import SkillsManager from './SkillsManager';
 
@@ -8,6 +8,7 @@ export default function ExperienceManager() {
   const [activeTab, setActiveTab] = useState('experiences');
   const [experiences, setExperiences] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [newExperience, setNewExperience] = useState({
     company: '',
     job_title: '',
@@ -40,9 +41,24 @@ export default function ExperienceManager() {
   const addExperience = async (e) => {
     e.preventDefault();
     
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('You must be logged in to add experiences');
+      return;
+    }
+
+    // Prepare experience data with user_id and handle empty dates
+    const experienceData = {
+      ...newExperience,
+      user_id: user.id,
+      start_date: newExperience.start_date || null,
+      end_date: newExperience.end_date || null,
+    };
+    
     const { data: expData, error: expError } = await supabase
       .from('experiences')
-      .insert([newExperience])
+      .insert([experienceData])
       .select()
       .single();
 
@@ -96,6 +112,88 @@ export default function ExperienceManager() {
     }
   };
 
+  const startEdit = (exp) => {
+    setEditingId(exp.id);
+    setNewExperience({
+      company: exp.company,
+      job_title: exp.job_title,
+      start_date: exp.start_date || '',
+      end_date: exp.end_date || '',
+      is_current: exp.is_current || false,
+    });
+    setResponsibilities(
+      exp.responsibilities && exp.responsibilities.length > 0
+        ? exp.responsibilities.map(r => r.description)
+        : ['']
+    );
+    setShowAddForm(false);
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    setNewExperience({
+      company: '',
+      job_title: '',
+      start_date: '',
+      end_date: '',
+      is_current: false,
+    });
+    setResponsibilities(['']);
+  };
+
+  const updateExperience = async (e) => {
+    e.preventDefault();
+    
+    const { error: expError } = await supabase
+      .from('experiences')
+      .update({
+        company: newExperience.company,
+        job_title: newExperience.job_title,
+        start_date: newExperience.start_date || null,
+        end_date: newExperience.end_date || null,
+        is_current: newExperience.is_current,
+      })
+      .eq('id', editingId);
+
+    if (expError) {
+      alert('Error updating experience: ' + expError.message);
+      return;
+    }
+
+    // Delete old responsibilities
+    const { error: deleteError } = await supabase
+      .from('responsibilities')
+      .delete()
+      .eq('experience_id', editingId);
+
+    if (deleteError) {
+      alert('Error deleting old responsibilities: ' + deleteError.message);
+      return;
+    }
+
+    // Insert new responsibilities
+    const responsibilitiesToInsert = responsibilities
+      .filter(r => r.trim())
+      .map(r => ({
+        experience_id: editingId,
+        description: r,
+      }));
+
+    if (responsibilitiesToInsert.length > 0) {
+      const { error: respError } = await supabase
+        .from('responsibilities')
+        .insert(responsibilitiesToInsert);
+
+      if (respError) {
+        alert('Error adding responsibilities: ' + respError.message);
+        return;
+      }
+    }
+
+    cancelEdit();
+    fetchExperiences();
+  };
+
   return (
     <div className="mt-8">
       {/* Tabs */}
@@ -138,9 +236,11 @@ export default function ExperienceManager() {
 
           <ResumeImport onImportComplete={fetchExperiences} />
 
-          {showAddForm && (
-            <form onSubmit={addExperience} className="bg-gray-50 rounded-lg p-6 mb-6 border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">Add Experience Manually</h3>
+          {(showAddForm || editingId) && (
+            <form onSubmit={editingId ? updateExperience : addExperience} className="bg-gray-50 rounded-lg p-6 mb-6 border border-gray-200">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+                {editingId ? 'Edit Experience' : 'Add Experience Manually'}
+              </h3>
               <div className="grid md:grid-cols-2 gap-4 mb-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Company</label>
@@ -235,11 +335,11 @@ export default function ExperienceManager() {
                   type="submit"
                   className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition"
                 >
-                  Save Experience
+                  {editingId ? 'Update Experience' : 'Save Experience'}
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddForm(false)}
+                  onClick={() => editingId ? cancelEdit() : setShowAddForm(false)}
                   className="bg-gray-200 text-gray-700 px-6 py-2 rounded-lg hover:bg-gray-300 transition"
                 >
                   Cancel
@@ -269,12 +369,22 @@ export default function ExperienceManager() {
                         </p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => deleteExperience(exp.id)}
-                      className="text-red-600 hover:text-red-800"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => startEdit(exp)}
+                        className="text-blue-600 hover:text-blue-800"
+                        title="Edit experience"
+                      >
+                        <Edit className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => deleteExperience(exp.id)}
+                        className="text-red-600 hover:text-red-800"
+                        title="Delete experience"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
                   </div>
                   
                   {exp.responsibilities && exp.responsibilities.length > 0 && (

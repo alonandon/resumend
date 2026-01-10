@@ -31,9 +31,22 @@ export default function SkillsManager() {
   const addSkill = async (e) => {
     e.preventDefault();
     
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      alert('You must be logged in to add skills');
+      return;
+    }
+
+    // Add user_id to skill data
+    const skillData = {
+      ...newSkill,
+      user_id: user.id
+    };
+    
     const { error } = await supabase
       .from('skills')
-      .insert([newSkill]);
+      .insert([skillData]);
 
     if (error) {
       alert('Error adding skill: ' + error.message);
