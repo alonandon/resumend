@@ -12,6 +12,9 @@ export default function ResumeOptimizer() {
   const [results, setResults] = useState(null);
   const [error, setError] = useState('');
   const [copiedSections, setCopiedSections] = useState({});
+  const [showSuggestionBox, setShowSuggestionBox] = useState(false);
+  const [suggestion, setSuggestion] = useState('');
+  const [suggestionSent, setSuggestionSent] = useState(false);
 
   // Determine if we're running locally or on Netlify
   const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -28,6 +31,26 @@ export default function ResumeOptimizer() {
     } catch (err) {
       console.error('Failed to copy:', err);
     }
+  };
+
+  const sendSuggestion = () => {
+    if (!suggestion.trim()) {
+      alert('Please enter a suggestion first!');
+      return;
+    }
+
+    // Create mailto link with the suggestion
+    const subject = encodeURIComponent('ResuMend Suggestion');
+    const body = encodeURIComponent(suggestion);
+    window.location.href = `mailto:resumendapp@gmail.com?subject=${subject}&body=${body}`;
+    
+    // Show success message
+    setSuggestionSent(true);
+    setTimeout(() => {
+      setSuggestionSent(false);
+      setShowSuggestionBox(false);
+      setSuggestion('');
+    }, 2000);
   };
 
   const extractTextFromPDF = async (file) => {
@@ -532,13 +555,54 @@ export default function ResumeOptimizer() {
               <p className="text-gray-600 mb-3">
                 We'd love to hear your feedback and ideas to improve ResuMend! 
               </p>
-              <a 
-                href="mailto:resumendapp@gmail.com?subject=ResuMend Suggestion"
-                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
-              >
-                <Mail className="w-4 h-4" />
-                Contact Us
-              </a>
+              
+              {!showSuggestionBox ? (
+                <button
+                  onClick={() => setShowSuggestionBox(true)}
+                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
+                >
+                  <Mail className="w-4 h-4" />
+                  Have any ideas? Tell us here!
+                </button>
+              ) : (
+                <div className="space-y-3">
+                  <textarea
+                    value={suggestion}
+                    onChange={(e) => setSuggestion(e.target.value)}
+                    placeholder="Share your ideas, feedback, or suggestions..."
+                    rows={4}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={sendSuggestion}
+                      disabled={suggestionSent}
+                      className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
+                    >
+                      {suggestionSent ? (
+                        <>
+                          <Check className="w-4 h-4" />
+                          Sent!
+                        </>
+                      ) : (
+                        <>
+                          <Mail className="w-4 h-4" />
+                          Send Suggestion
+                        </>
+                      )}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowSuggestionBox(false);
+                        setSuggestion('');
+                      }}
+                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
