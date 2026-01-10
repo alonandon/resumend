@@ -1,7 +1,20 @@
-import React, { useState } from 'react';
-import { Upload, FileText, Briefcase, Loader2, CheckCircle, AlertCircle, Key, Copy, Check, Mail } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Upload, FileText, Briefcase, Loader2, CheckCircle, AlertCircle, Key, Copy, Check, Mail, Info, User, Settings, LogOut } from 'lucide-react';
+import { supabase } from './lib/supabase';
+import Auth from './components/Auth';
+import ExperienceManager from './components/ExperienceManager';
+
+console.log('Imports successful');
+console.log('Supabase:', supabase);
+console.log('Auth component:', Auth);
+
+// Test Supabase connection
+console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
+console.log('Supabase client:', supabase);
 
 export default function ResumeOptimizer() {
+  console.log('ResumeOptimizer component rendering');
+  const [session, setSession] = useState(null);
   const [resumeFile, setResumeFile] = useState(null);
   const [resumeTextManual, setResumeTextManual] = useState('');
   const [jobUrl, setJobUrl] = useState('');
@@ -15,6 +28,29 @@ export default function ResumeOptimizer() {
   const [showSuggestionBox, setShowSuggestionBox] = useState(false);
   const [suggestion, setSuggestion] = useState('');
   const [suggestionSent, setSuggestionSent] = useState(false);
+  const [currentView, setCurrentView] = useState('optimizer');
+  const [showInfo, setShowInfo] = useState(false);
+  const [showProfileMenu, setShowProfileMenu] = useState(false);
+
+  // Check for existing session on load
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Guest mode: allow optimizer without login, but require login for experiences
+  if (!session && currentView === 'experiences') {
+    return <Auth />;
+  }
 
   // Determine if we're running locally or on Netlify
   const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
@@ -39,12 +75,10 @@ export default function ResumeOptimizer() {
       return;
     }
 
-    // Create mailto link with the suggestion
     const subject = encodeURIComponent('ResuMend Suggestion');
     const body = encodeURIComponent(suggestion);
     window.location.href = `mailto:resumendapp@gmail.com?subject=${subject}&body=${body}`;
     
-    // Show success message
     setSuggestionSent(true);
     setTimeout(() => {
       setSuggestionSent(false);
@@ -62,8 +96,6 @@ export default function ResumeOptimizer() {
         r.readAsDataURL(file);
       });
       
-      console.log('Calling extract-pdf function...');
-      
       const response = await fetch(`${API_BASE}/extract-pdf`, {
         method: "POST",
         headers: {
@@ -75,8 +107,6 @@ export default function ResumeOptimizer() {
       });
 
       const data = await response.json();
-      
-      console.log('Function response:', data);
       
       if (data.error) {
         throw new Error(data.error.message || data.error);
@@ -175,7 +205,6 @@ export default function ResumeOptimizer() {
     setResults(null);
 
     try {
-      // Analyze resume against job posting
       const analysisResponse = await fetch(`${API_BASE}/analyze-resume`, {
         method: "POST",
         headers: {
@@ -209,404 +238,530 @@ export default function ResumeOptimizer() {
         <div className="text-center mb-8">
           <h1 className="text-4xl font-bold text-gray-800 mb-2">ResuMend</h1>
           <p className="text-gray-600">AI-powered resume tailoring for your dream job</p>
-        </div>
-
-        {/* How It Works */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
-          <h3 className="text-lg font-semibold text-gray-800 mb-3">How it works:</h3>
-          <ol className="list-decimal list-inside space-y-2 text-gray-600">
-            <li>Upload your resume PDF or paste your resume text</li>
-            <li>Either paste a job posting URL and click "Fetch", OR paste the job description text directly</li>
-            <li>Click "Optimize Resume" to get AI-powered recommendations</li>
-            <li>Review keyword alignments, content improvements, and ready-to-copy bullet points</li>
-            <li>Use the copy buttons to grab optimized text for your resume</li>
-          </ol>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {/* Resume Upload */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center mb-4">
-              <FileText className="w-6 h-6 text-blue-600 mr-2" />
-              <h2 className="text-xl font-semibold text-gray-800">Your Resume</h2>
+          
+          {session && (
+            <div className="flex justify-center mt-4">
+              <div className="relative">
+                <button
+                  onClick={() => setShowProfileMenu(!showProfileMenu)}
+                  className="flex items-center gap-2 bg-white rounded-full px-4 py-2 shadow-md hover:shadow-lg transition border border-gray-200"
+                >
+                  <User className="w-5 h-5 text-gray-600" />
+                  <span className="text-sm text-gray-700">{session.user.email?.split('@')[0]}</span>
+                </button>
+                
+                {showProfileMenu && (
+                  <div className="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 w-64 z-20">
+                    <div className="p-4 border-b border-gray-100">
+                      <p className="text-sm font-medium text-gray-800">{session.user.email}</p>
+                      <p className="text-xs text-gray-500 mt-1">Free Plan</p>
+                    </div>
+                    
+                    <div className="py-2">
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          alert('Settings coming soon! Features planned:\n- Dark mode\n- Language preferences\n- Analysis speed options');
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                      >
+                        <Settings className="w-4 h-4" />
+                        Settings (Coming Soon)
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          setShowProfileMenu(false);
+                          supabase.auth.signOut();
+                        }}
+                        className="w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50 flex items-center gap-3"
+                      >
+                        <LogOut className="w-4 h-4" />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Option 1: Upload PDF
-                </label>
-                <label className="block">
-                  <div className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition ${
-                    resumeFile ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-blue-500'
-                  }`}>
-                    <Upload className={`w-12 h-12 mx-auto mb-3 ${resumeFile ? 'text-green-600' : 'text-gray-400'}`} />
-                    <p className="text-sm text-gray-600 mb-2">
-                      {resumeFile ? resumeFile.name : 'Click to upload resume PDF'}
-                    </p>
-                    {resumeFile && resumeText && (
-                      <div className="flex items-center justify-center text-green-600 text-sm">
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        Uploaded & extracted successfully
+          )}
+
+          {!session && (
+            <button
+              onClick={() => setCurrentView('experiences')}
+              className="mt-4 text-sm text-blue-600 hover:text-blue-800 underline font-medium"
+            >
+              Sign up for Experience Library
+            </button>
+          )}
+        </div>
+
+        <div className="flex gap-4 justify-center mt-4">
+          <div className="relative">
+            <button
+              onClick={() => setCurrentView('optimizer')}
+              className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+                currentView === 'optimizer' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Resume Optimizer
+              <Info 
+                className="w-4 h-4 cursor-pointer" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowInfo(currentView === 'optimizer' ? !showInfo : true);
+                  setCurrentView('optimizer');
+                }}
+              />
+            </button>
+            
+            {showInfo && currentView === 'optimizer' && (
+              <div className="absolute top-full mt-2 left-0 bg-white rounded-lg shadow-lg p-4 border border-gray-200 w-80 z-10">
+                <div className="flex items-start justify-between mb-2">
+                  <h4 className="font-semibold text-gray-800">How to use Resume Optimizer:</h4>
+                  <button onClick={() => setShowInfo(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+                <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
+                  <li>Upload your resume PDF or paste your resume text</li>
+                  <li>Paste a job posting URL or the full job description</li>
+                  <li>Click "Optimize Resume" to get AI recommendations</li>
+                  <li>Review keyword alignments and improvements</li>
+                  <li>Use copy buttons to grab optimized bullet points</li>
+                </ol>
+              </div>
+            )}
+          </div>
+          
+          <div className="relative">
+            <button
+              onClick={() => {
+                if (!session) {
+                  if (confirm('You need to create an account to use the Experience Library. Sign up now?')) {
+                    setCurrentView('experiences');
+                  }
+                } else {
+                  setCurrentView('experiences');
+                }
+              }}
+              className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+                currentView === 'experiences' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              }`}
+            >
+              Experience Library {!session && <span className="text-xs">(Sign up required)</span>}
+              <Info 
+                className="w-4 h-4 cursor-pointer" 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (session) {
+                    setShowInfo(currentView === 'experiences' ? !showInfo : true);
+                  }
+                }}
+              />
+            </button>
+            
+            {showInfo && currentView === 'experiences' && session && (
+              <div className="absolute top-full mt-2 right-0 bg-white rounded-lg shadow-lg p-4 border border-gray-200 w-80 z-10">
+                <div className="flex items-start justify-between mb-2">
+                  <h4 className="font-semibold text-gray-800">How to use Experience Library:</h4>
+                  <button onClick={() => setShowInfo(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                </div>
+                <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
+                  <li>Add all your work experiences and responsibilities</li>
+                  <li>Store everything - even items that don't fit on a standard resume</li>
+                  <li>The AI will select the most relevant experiences for each job</li>
+                  <li>Get personalized resume suggestions based on your full history</li>
+                </ol>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {currentView === 'optimizer' ? (
+          <>
+            <div className="grid md:grid-cols-2 gap-6 mb-8 mt-8">
+              {/* Resume Upload */}
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center mb-4">
+                  <FileText className="w-6 h-6 text-blue-600 mr-2" />
+                  <h2 className="text-xl font-semibold text-gray-800">Your Resume</h2>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Option 1: Upload PDF
+                    </label>
+                    <label className="block">
+                      <div className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition ${
+                        resumeFile ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-blue-500'
+                      }`}>
+                        <Upload className={`w-12 h-12 mx-auto mb-3 ${resumeFile ? 'text-green-600' : 'text-gray-400'}`} />
+                        <p className="text-sm text-gray-600 mb-2">
+                          {resumeFile ? resumeFile.name : 'Click to upload resume PDF'}
+                        </p>
+                        {resumeFile && resumeText && (
+                          <div className="flex items-center justify-center text-green-600 text-sm">
+                            <CheckCircle className="w-4 h-4 mr-1" />
+                            Uploaded & extracted successfully
+                          </div>
+                        )}
+                        {resumeFile && !resumeText && (
+                          <div className="flex items-center justify-center text-yellow-600 text-sm">
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                            Extracting text...
+                          </div>
+                        )}
+                        <input
+                          type="file"
+                          className="hidden"
+                          accept=".pdf"
+                          onChange={handleResumeUpload}
+                        />
                       </div>
-                    )}
-                    {resumeFile && !resumeText && (
-                      <div className="flex items-center justify-center text-yellow-600 text-sm">
-                        <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                        Extracting text...
-                      </div>
-                    )}
-                    <input
-                      type="file"
-                      className="hidden"
-                      accept=".pdf"
-                      onChange={handleResumeUpload}
+                    </label>
+                  </div>
+                  
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white text-gray-500">OR</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Option 2: Paste Resume Text
+                    </label>
+                    <textarea
+                      value={resumeTextManual}
+                      onChange={(e) => setResumeTextManual(e.target.value)}
+                      placeholder="Paste your resume text here..."
+                      rows={8}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
                     />
                   </div>
-                </label>
-              </div>
-              
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">OR</span>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Option 2: Paste Resume Text
-                </label>
-                <textarea
-                  value={resumeTextManual}
-                  onChange={(e) => setResumeTextManual(e.target.value)}
-                  placeholder="Paste your resume text here..."
-                  rows={8}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
-                />
-              </div>
-              
-              {(resumeText || resumeTextManual) && (
-                <div className="flex items-center text-green-600 text-sm">
-                  <CheckCircle className="w-4 h-4 mr-1" />
-                  Resume ready
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Job Posting URL */}
-          <div className="bg-white rounded-lg shadow-md p-6">
-            <div className="flex items-center mb-4">
-              <Briefcase className="w-6 h-6 text-indigo-600 mr-2" />
-              <h2 className="text-xl font-semibold text-gray-800">Job Posting</h2>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Option 1: Job Posting URL
-                </label>
-                <input
-                  type="url"
-                  value={jobUrl}
-                  onChange={(e) => setJobUrl(e.target.value)}
-                  placeholder="https://example.com/job-posting"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
-                />
-                <button
-                  onClick={fetchJobPosting}
-                  disabled={!jobUrl || processing}
-                  className="mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {processing && !results ? (
-                    <span className="flex items-center justify-center">
-                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                      Fetching...
-                    </span>
-                  ) : (
-                    'Fetch Job Posting'
-                  )}
-                </button>
-              </div>
-              
-              <div className="relative">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
-                </div>
-                <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">OR</span>
-                </div>
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Option 2: Paste Job Description
-                </label>
-                <textarea
-                  value={jobTextManual}
-                  onChange={(e) => setJobTextManual(e.target.value)}
-                  placeholder="Paste the full job description here..."
-                  rows={8}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition resize-none"
-                />
-              </div>
-              
-              {(jobText || jobTextManual) && (
-                <div className="flex items-center text-green-600 text-sm">
-                  <CheckCircle className="w-4 h-4 mr-1" />
-                  Job posting ready
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Analyze Button */}
-        <div className="text-center mb-8">
-          <button
-            onClick={analyzeResume}
-            disabled={(!resumeText && !resumeTextManual) || (!jobText && !jobTextManual) || processing}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {processing ? (
-              <span className="flex items-center">
-                <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                Analyzing...
-              </span>
-            ) : (
-              'Optimize Resume'
-            )}
-          </button>
-        </div>
-
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
-            <div className="flex items-center text-red-800">
-              <AlertCircle className="w-5 h-5 mr-2" />
-              {error}
-            </div>
-          </div>
-        )}
-
-        {/* Results Display */}
-        {results && (
-          <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
-            <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-6 py-4 rounded-t-lg -mx-8 -mt-8 mb-8">
-              <h2 className="text-2xl font-bold">Optimization Recommendations</h2>
-            </div>
-            
-            <div className="space-y-8">
-              {results.split(/(?=#{1,2}\s)/).filter(s => s.trim()).map((section, idx) => {
-                const lines = section.split('\n').filter(l => l.trim());
-                const headerLine = lines[0];
-                const isMainHeader = headerLine.startsWith('# ');
-                const isSubHeader = headerLine.startsWith('## ');
-                
-                if (isMainHeader || isSubHeader) {
-                  const headerText = headerLine.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim();
-                  const contentLines = lines.slice(1);
-                  const sectionId = `section-${idx}`;
                   
-                  // Check if this is the bullet points section
-                  const isBulletPointsSection = headerText.toLowerCase().includes('bullet point') || 
-                                                 headerText.toLowerCase().includes('ready-to-use');
-                  
-                  // Extract all bullet points for this section
-                  const bulletPoints = contentLines
-                    .filter(line => line.trim().startsWith('*') || line.trim().startsWith('-'))
-                    .map(line => line.replace(/^[*-]\s*/, '').replace(/\*\*/g, '').trim())
-                    .join('\n');
-                  
-                  return (
-                    <div key={idx} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                      <div className="flex items-center justify-between mb-4 pb-2 border-b-2 border-blue-400">
-                        <h3 className="text-xl font-bold text-blue-600">
-                          {headerText}
-                        </h3>
-                        {isBulletPointsSection && bulletPoints && (
-                          <button
-                            onClick={() => copyToClipboard(bulletPoints, sectionId)}
-                            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
-                          >
-                            {copiedSections[sectionId] ? (
-                              <>
-                                <Check className="w-4 h-4" />
-                                Copied!
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-4 h-4" />
-                                Copy All
-                              </>
-                            )}
-                          </button>
-                        )}
-                      </div>
-                      <div className="space-y-3">
-                        {contentLines.map((line, lineIdx) => {
-                          const trimmed = line.trim();
-                          
-                          // Bold subheaders
-                          if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
-                            const subSectionId = `${sectionId}-sub-${lineIdx}`;
-                            // Get bullet points under this subheader
-                            let subBulletPoints = [];
-                            for (let i = lineIdx + 1; i < contentLines.length; i++) {
-                              const nextLine = contentLines[i].trim();
-                              if (nextLine.startsWith('**') && nextLine.endsWith('**')) break;
-                              if (nextLine.startsWith('*') || nextLine.startsWith('-')) {
-                                subBulletPoints.push(nextLine.replace(/^[*-]\s*/, '').replace(/\*\*/g, '').trim());
-                              }
-                            }
-                            
-                            return (
-                              <div key={lineIdx} className="mt-4">
-                                <div className="flex items-center justify-between mb-2">
-                                  <p className="font-bold text-gray-900 text-base">
-                                    {trimmed.replace(/\*\*/g, '')}
-                                  </p>
-                                  {isBulletPointsSection && subBulletPoints.length > 0 && (
-                                    <button
-                                      onClick={() => copyToClipboard(subBulletPoints.join('\n'), subSectionId)}
-                                      className="flex items-center gap-1 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition text-xs font-medium"
-                                    >
-                                      {copiedSections[subSectionId] ? (
-                                        <>
-                                          <Check className="w-3 h-3" />
-                                          Copied
-                                        </>
-                                      ) : (
-                                        <>
-                                          <Copy className="w-3 h-3" />
-                                          Copy
-                                        </>
-                                      )}
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          }
-                          
-                          // Bullet points
-                          if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
-                            return (
-                              <div key={lineIdx} className="flex items-start ml-2">
-                                <span className="text-blue-500 mr-3 mt-1">•</span>
-                                <span className="text-gray-700 flex-1">
-                                  {trimmed.replace(/^[*-]\s*/, '').replace(/\*\*/g, '')}
-                                </span>
-                              </div>
-                            );
-                          }
-                          
-                          // Regular text
-                          if (trimmed) {
-                            return (
-                              <p key={lineIdx} className="text-gray-700 leading-relaxed">
-                                {trimmed.replace(/\*\*/g, '')}
-                              </p>
-                            );
-                          }
-                          
-                          return null;
-                        })}
-                      </div>
+                  {(resumeText || resumeTextManual) && (
+                    <div className="flex items-center text-green-600 text-sm">
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      Resume ready
                     </div>
-                  );
-                }
-                
-                return null;
-              })}
-            </div>
-            
-            <div className="mt-8 pt-6 border-t border-gray-300 flex justify-center">
-              <button
-                onClick={() => {
-                  setResults(null);
-                  setResumeText('');
-                  setResumeTextManual('');
-                  setResumeFile(null);
-                  setJobText('');
-                  setJobTextManual('');
-                  setJobUrl('');
-                  setCopiedSections({});
-                }}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg transition"
-              >
-                Start New Analysis
-              </button>
-            </div>
-          </div>
-        )}
+                  )}
+                </div>
+              </div>
 
-        {/* Instructions removed - moved to top */}
-
-        {/* Contact Box */}
-        <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-md p-6 border-2 border-blue-200">
-          <div className="flex items-start gap-4">
-            <div className="bg-blue-600 rounded-full p-3">
-              <Mail className="w-6 h-6 text-white" />
-            </div>
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-800 mb-2">Have Suggestions?</h3>
-              <p className="text-gray-600 mb-3">
-                We'd love to hear your feedback and ideas to improve ResuMend! 
-              </p>
-              
-              {!showSuggestionBox ? (
-                <button
-                  onClick={() => setShowSuggestionBox(true)}
-                  className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
-                >
-                  <Mail className="w-4 h-4" />
-                  Have any ideas? Tell us here!
-                </button>
-              ) : (
-                <div className="space-y-3">
-                  <textarea
-                    value={suggestion}
-                    onChange={(e) => setSuggestion(e.target.value)}
-                    placeholder="Share your ideas, feedback, or suggestions..."
-                    rows={4}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
-                  />
-                  <div className="flex gap-2">
+              {/* Job Posting */}
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <div className="flex items-center mb-4">
+                  <Briefcase className="w-6 h-6 text-indigo-600 mr-2" />
+                  <h2 className="text-xl font-semibold text-gray-800">Job Posting</h2>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Option 1: Job Posting URL
+                    </label>
+                    <input
+                      type="url"
+                      value={jobUrl}
+                      onChange={(e) => setJobUrl(e.target.value)}
+                      placeholder="https://example.com/job-posting"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                    />
                     <button
-                      onClick={sendSuggestion}
-                      disabled={suggestionSent}
-                      className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
+                      onClick={fetchJobPosting}
+                      disabled={!jobUrl || processing}
+                      className="mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      {suggestionSent ? (
-                        <>
-                          <Check className="w-4 h-4" />
-                          Sent!
-                        </>
+                      {processing && !results ? (
+                        <span className="flex items-center justify-center">
+                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                          Fetching...
+                        </span>
                       ) : (
-                        <>
-                          <Mail className="w-4 h-4" />
-                          Send Suggestion
-                        </>
+                        'Fetch Job Posting'
                       )}
                     </button>
-                    <button
-                      onClick={() => {
-                        setShowSuggestionBox(false);
-                        setSuggestion('');
-                      }}
-                      className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
-                    >
-                      Cancel
-                    </button>
                   </div>
+                  
+                  <div className="relative">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                      <span className="px-2 bg-white text-gray-500">OR</span>
+                    </div>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Option 2: Paste Job Description
+                    </label>
+                    <textarea
+                      value={jobTextManual}
+                      onChange={(e) => setJobTextManual(e.target.value)}
+                      placeholder="Paste the full job description here..."
+                      rows={8}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition resize-none"
+                    />
+                  </div>
+                  
+                  {(jobText || jobTextManual) && (
+                    <div className="flex items-center text-green-600 text-sm">
+                      <CheckCircle className="w-4 h-4 mr-1" />
+                      Job posting ready
+                    </div>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+
+            {/* Analyze Button */}
+            <div className="text-center mb-8">
+              <button
+                onClick={analyzeResume}
+                disabled={(!resumeText && !resumeTextManual) || (!jobText && !jobTextManual) || processing}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {processing ? (
+                  <span className="flex items-center">
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Analyzing...
+                  </span>
+                ) : (
+                  'Optimize Resume'
+                )}
+              </button>
+            </div>
+
+            {/* Error Display */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
+                <div className="flex items-center text-red-800">
+                  <AlertCircle className="w-5 h-5 mr-2" />
+                  {error}
+                </div>
+              </div>
+            )}
+
+            {/* Results Display */}
+            {results && (
+              <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
+                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-6 py-4 rounded-t-lg -mx-8 -mt-8 mb-8">
+                  <h2 className="text-2xl font-bold">Optimization Recommendations</h2>
+                </div>
+                
+                <div className="space-y-8">
+                  {results.split(/(?=#{1,2}\s)/).filter(s => s.trim()).map((section, idx) => {
+                    const lines = section.split('\n').filter(l => l.trim());
+                    const headerLine = lines[0];
+                    const isMainHeader = headerLine.startsWith('# ');
+                    const isSubHeader = headerLine.startsWith('## ');
+                    
+                    if (isMainHeader || isSubHeader) {
+                      const headerText = headerLine.replace(/^#+\s*/, '').replace(/\*\*/g, '').trim();
+                      const contentLines = lines.slice(1);
+                      const sectionId = `section-${idx}`;
+                      
+                      const isBulletPointsSection = headerText.toLowerCase().includes('bullet point') || 
+                                                     headerText.toLowerCase().includes('ready-to-use');
+                      
+                      const bulletPoints = contentLines
+                        .filter(line => line.trim().startsWith('*') || line.trim().startsWith('-'))
+                        .map(line => line.replace(/^[*-]\s*/, '').replace(/\*\*/g, '').trim())
+                        .join('\n');
+                      
+                      return (
+                        <div key={idx} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                          <div className="flex items-center justify-between mb-4 pb-2 border-b-2 border-blue-400">
+                            <h3 className="text-xl font-bold text-blue-600">
+                              {headerText}
+                            </h3>
+                            {isBulletPointsSection && bulletPoints && (
+                              <button
+                                onClick={() => copyToClipboard(bulletPoints, sectionId)}
+                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
+                              >
+                                {copiedSections[sectionId] ? (
+                                  <>
+                                    <Check className="w-4 h-4" />
+                                    Copied!
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-4 h-4" />
+                                    Copy All
+                                  </>
+                                )}
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-3">
+                            {contentLines.map((line, lineIdx) => {
+                              const trimmed = line.trim();
+                              
+                              if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+                                const subSectionId = `${sectionId}-sub-${lineIdx}`;
+                                let subBulletPoints = [];
+                                for (let i = lineIdx + 1; i < contentLines.length; i++) {
+                                  const nextLine = contentLines[i].trim();
+                                  if (nextLine.startsWith('**') && nextLine.endsWith('**')) break;
+                                  if (nextLine.startsWith('*') || nextLine.startsWith('-')) {
+                                    subBulletPoints.push(nextLine.replace(/^[*-]\s*/, '').replace(/\*\*/g, '').trim());
+                                  }
+                                }
+                                
+                                return (
+                                  <div key={lineIdx} className="mt-4">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <p className="font-bold text-gray-900 text-base">
+                                        {trimmed.replace(/\*\*/g, '')}
+                                      </p>
+                                      {isBulletPointsSection && subBulletPoints.length > 0 && (
+                                        <button
+                                          onClick={() => copyToClipboard(subBulletPoints.join('\n'), subSectionId)}
+                                          className="flex items-center gap-1 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition text-xs font-medium"
+                                        >
+                                          {copiedSections[subSectionId] ? (
+                                            <>
+                                              <Check className="w-3 h-3" />
+                                              Copied
+                                            </>
+                                          ) : (
+                                            <>
+                                              <Copy className="w-3 h-3" />
+                                              Copy
+                                            </>
+                                          )}
+                                        </button>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              }
+                              
+                              if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
+                                return (
+                                  <div key={lineIdx} className="flex items-start ml-2">
+                                    <span className="text-blue-500 mr-3 mt-1">•</span>
+                                    <span className="text-gray-700 flex-1">
+                                      {trimmed.replace(/^[*-]\s*/, '').replace(/\*\*/g, '')}
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              
+                              if (trimmed) {
+                                return (
+                                  <p key={lineIdx} className="text-gray-700 leading-relaxed">
+                                    {trimmed.replace(/\*\*/g, '')}
+                                  </p>
+                                );
+                              }
+                              
+                              return null;
+                            })}
+                          </div>
+                        </div>
+                      );
+                    }
+                    
+                    return null;
+                  })}
+                </div>
+                
+                <div className="mt-8 pt-6 border-t border-gray-300 flex justify-center">
+                  <button
+                    onClick={() => {
+                      setResults(null);
+                      setResumeText('');
+                      setResumeTextManual('');
+                      setResumeFile(null);
+                      setJobText('');
+                      setJobTextManual('');
+                      setJobUrl('');
+                      setCopiedSections({});
+                    }}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg transition"
+                  >
+                    Start New Analysis
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Contact Box */}
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-md p-6 border-2 border-blue-200 mt-8">
+              <div className="flex items-start gap-4">
+                <div className="bg-blue-600 rounded-full p-3">
+                  <Mail className="w-6 h-6 text-white" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Have Suggestions?</h3>
+                  <p className="text-gray-600 mb-3">
+                    We'd love to hear your feedback and ideas to improve ResuMend! 
+                  </p>
+                  
+                  {!showSuggestionBox ? (
+                    <button
+                      onClick={() => setShowSuggestionBox(true)}
+                      className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
+>
+<Mail className="w-4 h-4" />
+Have any ideas? Tell us here!
+</button>
+) : (
+<div className="space-y-3">
+<textarea
+value={suggestion}
+onChange={(e) => setSuggestion(e.target.value)}
+placeholder="Share your ideas, feedback, or suggestions..."
+rows={4}
+className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
+/>
+<div className="flex gap-2">
+<button
+                       onClick={sendSuggestion}
+                       disabled={suggestionSent}
+                       className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
+                     >
+{suggestionSent ? (
+<>
+<Check className="w-4 h-4" />
+Sent!
+</>
+) : (
+<>
+<Mail className="w-4 h-4" />
+Send Suggestion
+</>
+)}
+</button>
+<button
+onClick={() => {
+setShowSuggestionBox(false);
+setSuggestion('');
+}}
+className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+>
+Cancel
+</button>
+</div>
+</div>
+)}
+</div>
+</div>
+</div>
+</>
+) : (
+<ExperienceManager />
+)}
+</div>
+</div>
+);
 }
