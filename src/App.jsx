@@ -3,6 +3,7 @@ import { Upload, FileText, Briefcase, Loader2, CheckCircle, AlertCircle, Key, Co
 import { supabase } from './lib/supabase';
 import Auth from './components/Auth';
 import ExperienceManager from './components/ExperienceManager';
+import { trackUsage } from './lib/trackUsage';
 
 console.log('Imports successful');
 console.log('Supabase:', supabase);
@@ -31,6 +32,7 @@ export default function ResumeOptimizer() {
   const [currentView, setCurrentView] = useState('optimizer');
   const [showInfo, setShowInfo] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
+  const [useAllExperiences, setUseAllExperiences] = useState(false);
 
   // Check for existing session on load
   useEffect(() => {
@@ -190,13 +192,20 @@ export default function ResumeOptimizer() {
     const finalJobText = jobText || jobTextManual;
     const finalResumeText = resumeText || resumeTextManual;
     
-    if (!finalResumeText) {
-      setError('Please upload a resume PDF or paste your resume text.');
-      return;
-    }
-    
     if (!finalJobText) {
       setError('Please provide a job posting (either fetch from URL or paste text)');
+      return;
+    }
+
+    // If using all experiences, require login
+    if (useAllExperiences && !session) {
+      setError('Please sign in to use your saved experiences');
+      return;
+    }
+
+    // If not using all experiences, require resume
+    if (!useAllExperiences && !finalResumeText) {
+      setError('Please upload a resume PDF or paste your resume text.');
       return;
     }
 
@@ -205,26 +214,82 @@ export default function ResumeOptimizer() {
     setResults(null);
 
     try {
-      const analysisResponse = await fetch(`${API_BASE}/analyze-resume`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          resumeText: finalResumeText,
-          jobText: finalJobText
-        })
-      });
+      if (useAllExperiences) {
+        // Fetch user's experiences and skills
+        const { data: experiencesData, error: expError } = await supabase
+          .from('experiences')
+          .select(`
+            *,
+            responsibilities (*)
+          `)
+          .order('start_date', { ascending: false });
 
-      const analysisData = await analysisResponse.json();
-      
-      if (analysisData.error) {
-        throw new Error(analysisData.error);
+        if (expError) throw expError;
+
+        const { data: skillsData, error: skillsError } = await supabase
+          .from('skills')
+          .select('*');
+
+        if (skillsError) throw skillsError;
+
+        // Use optimize-with-experiences function
+        const analysisResponse = await fetch(`${API_BASE}/optimize-with-experiences`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            experiences: experiencesData,
+            skills: skillsData,
+            jobText: finalJobText
+          })
+        });
+
+        const analysisData = await analysisResponse.json();
+        
+        if (analysisData.error) {
+          throw new Error(analysisData.error);
+        }
+        
+        const analysis = analysisData.content[0].text;
+        setResults(analysis);
+
+        // Track usage
+        await trackUsage('optimize_resume_with_experiences', {
+          job_title: finalJobText.substring(0, 100),
+          experiences_count: experiencesData?.length || 0,
+          skills_count: skillsData?.length || 0
+        });
+
+      } else {
+        // Original analyze-resume function
+        const analysisResponse = await fetch(`${API_BASE}/analyze-resume`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            resumeText: finalResumeText,
+            jobText: finalJobText
+          })
+        });
+
+        const analysisData = await analysisResponse.json();
+        
+        if (analysisData.error) {
+          throw new Error(analysisData.error);
+        }
+        
+        const analysis = analysisData.content[0].text;
+        setResults(analysis);
+
+        // Track usage
+        await trackUsage('optimize_resume', {
+          job_title: finalJobText.substring(0, 100),
+          used_pdf: !!resumeFile
+        });
       }
-      
-      const analysis = analysisData.content[0].text;
 
-      setResults(analysis);
     } catch (err) {
       setError(`Analysis failed: ${err.message}`);
     } finally {
@@ -389,70 +454,77 @@ export default function ResumeOptimizer() {
                   <FileText className="w-6 h-6 text-blue-600 mr-2" />
                   <h2 className="text-xl font-semibold text-gray-800">Your Resume</h2>
                 </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Option 1: Upload PDF
-                    </label>
-                    <label className="block">
-                      <div className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition ${
-                        resumeFile ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-blue-500'
-                      }`}>
-                        <Upload className={`w-12 h-12 mx-auto mb-3 ${resumeFile ? 'text-green-600' : 'text-gray-400'}`} />
-                        <p className="text-sm text-gray-600 mb-2">
-                          {resumeFile ? resumeFile.name : 'Click to upload resume PDF'}
-                        </p>
-                        {resumeFile && resumeText && (
-                          <div className="flex items-center justify-center text-green-600 text-sm">
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            Uploaded & extracted successfully
-                          </div>
-                        )}
-                        {resumeFile && !resumeText && (
-                          <div className="flex items-center justify-center text-yellow-600 text-sm">
-                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                            Extracting text...
-                          </div>
-                        )}
-                        <input
-                          type="file"
-                          className="hidden"
-                          accept=".pdf"
-                          onChange={handleResumeUpload}
-                        />
+                {useAllExperiences ? (
+                  <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6 text-center">
+                    <p className="text-purple-800 font-medium">Using your saved experiences</p>
+                    <p className="text-sm text-purple-600 mt-1">Resume upload not needed</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Option 1: Upload PDF
+                      </label>
+                      <label className="block">
+                        <div className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition ${
+                          resumeFile ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-blue-500'
+                        }`}>
+                          <Upload className={`w-12 h-12 mx-auto mb-3 ${resumeFile ? 'text-green-600' : 'text-gray-400'}`} />
+                          <p className="text-sm text-gray-600 mb-2">
+                            {resumeFile ? resumeFile.name : 'Click to upload resume PDF'}
+                          </p>
+                          {resumeFile && resumeText && (
+                            <div className="flex items-center justify-center text-green-600 text-sm">
+                              <CheckCircle className="w-4 h-4 mr-1" />
+                              Uploaded & extracted successfully
+                            </div>
+                          )}
+                          {resumeFile && !resumeText && (
+                            <div className="flex items-center justify-center text-yellow-600 text-sm">
+                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                              Extracting text...
+                            </div>
+                          )}
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept=".pdf"
+                            onChange={handleResumeUpload}
+                          />
+                        </div>
+                      </label>
+                    </div>
+                    
+                    <div className="relative">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300"></div>
                       </div>
-                    </label>
-                  </div>
-                  
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-300"></div>
+                      <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-white text-gray-500">OR</span>
+                      </div>
                     </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-white text-gray-500">OR</span>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Option 2: Paste Resume Text
+                      </label>
+                      <textarea
+                        value={resumeTextManual}
+                        onChange={(e) => setResumeTextManual(e.target.value)}
+                        placeholder="Paste your resume text here..."
+                        rows={8}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
+                      />
                     </div>
+                    
+                    {(resumeText || resumeTextManual) && (
+                      <div className="flex items-center text-green-600 text-sm">
+                        <CheckCircle className="w-4 h-4 mr-1" />
+                        Resume ready
+                      </div>
+                    )}
                   </div>
-                  
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Option 2: Paste Resume Text
-                    </label>
-                    <textarea
-                      value={resumeTextManual}
-                      onChange={(e) => setResumeTextManual(e.target.value)}
-                      placeholder="Paste your resume text here..."
-                      rows={8}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
-                    />
-                  </div>
-                  
-                  {(resumeText || resumeTextManual) && (
-                    <div className="flex items-center text-green-600 text-sm">
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Resume ready
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
 
               {/* Job Posting */}
@@ -523,18 +595,47 @@ export default function ResumeOptimizer() {
 
             {/* Analyze Button */}
             <div className="text-center mb-8">
+              {session && (
+                <div className="mb-4">
+                  <label className="inline-flex items-center gap-3 bg-purple-50 border-2 border-purple-200 rounded-lg px-6 py-3 cursor-pointer hover:bg-purple-100 transition">
+                    <input
+                      type="checkbox"
+                      checked={useAllExperiences}
+                      onChange={(e) => {
+                        setUseAllExperiences(e.target.checked);
+                        if (e.target.checked) {
+                          // Clear resume inputs when using experiences
+                          setResumeText('');
+                          setResumeTextManual('');
+                          setResumeFile(null);
+                        }
+                      }}
+                      className="w-5 h-5 text-purple-600"
+                    />
+                    <div className="text-left">
+                      <p className="font-semibold text-gray-800">Use All My Saved Experiences</p>
+                      <p className="text-sm text-gray-600">AI will select the best experiences and craft optimized bullets for this job</p>
+                    </div>
+                  </label>
+                </div>
+              )}
+              
               <button
                 onClick={analyzeResume}
-                disabled={(!resumeText && !resumeTextManual) || (!jobText && !jobTextManual) || processing}
+                disabled={
+                  (useAllExperiences ? !session : (!resumeText && !resumeTextManual)) || 
+                  (!jobText && !jobTextManual) || 
+                  processing
+                }
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {processing ? (
                   <span className="flex items-center">
                     <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                    Analyzing...
+                    {useAllExperiences ? 'Analyzing Your Experiences...' : 'Analyzing...'}
                   </span>
                 ) : (
-                  'Optimize Resume'
+                  useAllExperiences ? 'Optimize With My Experiences' : 'Optimize Resume'
                 )}
               </button>
             </div>
@@ -711,57 +812,57 @@ export default function ResumeOptimizer() {
                     <button
                       onClick={() => setShowSuggestionBox(true)}
                       className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
->
-<Mail className="w-4 h-4" />
-Have any ideas? Tell us here!
-</button>
-) : (
-<div className="space-y-3">
-<textarea
-value={suggestion}
-onChange={(e) => setSuggestion(e.target.value)}
-placeholder="Share your ideas, feedback, or suggestions..."
-rows={4}
-className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
-/>
-<div className="flex gap-2">
-<button
-                       onClick={sendSuggestion}
-                       disabled={suggestionSent}
-                       className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
-                     >
-{suggestionSent ? (
-<>
-<Check className="w-4 h-4" />
-Sent!
-</>
-) : (
-<>
-<Mail className="w-4 h-4" />
-Send Suggestion
-</>
-)}
-</button>
-<button
-onClick={() => {
-setShowSuggestionBox(false);
-setSuggestion('');
-}}
-className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
->
-Cancel
-</button>
-</div>
-</div>
-)}
-</div>
-</div>
-</div>
-</>
-) : (
-<ExperienceManager />
-)}
-</div>
-</div>
-);
+                    >
+                      <Mail className="w-4 h-4" />
+                      Have any ideas? Tell us here!
+                    </button>
+                  ) : (
+                    <div className="space-y-3">
+                      <textarea
+                        value={suggestion}
+                        onChange={(e) => setSuggestion(e.target.value)}
+                        placeholder="Share your ideas, feedback, or suggestions..."
+                        rows={4}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={sendSuggestion}
+                          disabled={suggestionSent}
+                          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
+                        >
+                          {suggestionSent ? (
+                            <>
+                              <Check className="w-4 h-4" />
+                              Sent!
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="w-4 h-4" />
+                              Send Suggestion
+                            </>
+                          )}
+                        </button>
+                        <button
+                          onClick={() => {
+                            setShowSuggestionBox(false);
+                            setSuggestion('');
+                          }}
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          <ExperienceManager />
+        )}
+      </div>
+    </div>
+  );
 }
