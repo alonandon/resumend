@@ -33,7 +33,7 @@ export const handler = async (event) => {
       throw new Error('API key not configured');
     }
 
-    console.log('Fetching URL:', url);
+    console.log('Searching for job posting at URL:', url);
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -47,11 +47,13 @@ export const handler = async (event) => {
         max_tokens: 4000,
         messages: [{
           role: "user",
-          content: `Please use the web_fetch tool to retrieve the content from this URL and extract all the job posting text: ${url}`
+          content: `Search the web for the job posting at this URL: ${url}
+
+Extract and return the full job description including responsibilities, requirements, and qualifications. Be thorough and capture all relevant details.`
         }],
         tools: [{
-          type: "web_fetch_20250305",
-          name: "web_fetch"
+          type: "web_search_20250305",
+          name: "web_search"
         }]
       })
     });
