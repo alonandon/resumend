@@ -233,6 +233,12 @@ export default function ResumeOptimizer() {
         if (skillsError) throw skillsError;
 
         // Use optimize-with-experiences function
+        console.log('=== SENDING TO OPTIMIZER ===');
+        console.log('Job text being sent:', finalJobText ? `${finalJobText.substring(0, 100)}...` : 'EMPTY');
+        console.log('Job text length:', finalJobText?.length || 0);
+        console.log('Experiences count:', experiencesData?.length);
+        console.log('Skills count:', skillsData?.length);
+        
         const analysisResponse = await fetch(`${API_BASE}/optimize-with-experiences`, {
           method: "POST",
           headers: {
