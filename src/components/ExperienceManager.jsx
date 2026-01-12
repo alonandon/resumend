@@ -254,68 +254,6 @@ export default function ExperienceManager({ optimizedBullets = null }) {
 
   return (
     <div className="mt-8">
-      {/* Generate Resume Button */}
-      <div className={`mb-6 rounded-lg shadow-lg p-6 ${
-        optimizedBullets 
-          ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
-          : 'bg-gradient-to-r from-gray-400 to-gray-500'
-      }`}>
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-xl font-bold text-white mb-1">
-              {optimizedBullets ? 'Ready to Generate Your Resume!' : 'Optimize First to Generate Resume'}
-            </h3>
-            <p className="text-white text-sm">
-              {optimizedBullets 
-                ? 'Your optimized bullets are ready! Complete your profile, education, and skills, then generate your professional resume.'
-                : 'Run the Resume Optimizer first to generate AI-enhanced bullet points, then come here to create your resume.'}
-            </p>
-          </div>
-          <button
-            onClick={handleGenerateResume}
-            disabled={generatingResume || !optimizedBullets}
-            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-bold shadow-md whitespace-nowrap transition ${
-              optimizedBullets
-                ? 'bg-white text-green-600 hover:bg-green-50'
-                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-            }`}
-          >
-            {generatingResume ? (
-              <>
-                <FileText className="w-5 h-5 animate-pulse" />
-                Generating...
-              </>
-            ) : !optimizedBullets ? (
-              <>
-                <AlertCircle className="w-5 h-5" />
-                Optimize First
-              </>
-            ) : (
-              <>
-                <Download className="w-5 h-5" />
-                Generate Resume PDF
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
-      {/* Info message if no optimization */}
-      {!optimizedBullets && (
-        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
-            <div>
-              <p className="text-sm text-blue-800 font-medium">Resume generation requires optimization first</p>
-              <p className="text-sm text-blue-600 mt-1">
-                Go to the <strong>Resume Optimizer</strong> tab, upload your resume and a job posting, 
-                then click "Optimize Resume". Once complete, return here to generate your PDF.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Tabs */}
       <div className="flex gap-2 mb-6 flex-wrap">
         <button

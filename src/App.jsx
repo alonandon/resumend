@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Upload, FileText, Briefcase, Loader2, CheckCircle, AlertCircle, Key, Copy, Check, Mail, Info, User, Settings, LogOut, Download } from 'lucide-react';
+import { Upload, FileText, Briefcase, Loader2, CheckCircle, AlertCircle, Key, Copy, Check, Mail, Info, User, Settings, LogOut, Download, Moon, Sun } from 'lucide-react';
 import { supabase } from './lib/supabase';
 import Auth from './components/Auth';
 import ExperienceManager from './components/ExperienceManager';
@@ -37,6 +37,11 @@ export default function ResumeOptimizer() {
   const [useAllExperiences, setUseAllExperiences] = useState(false);
   const [optimizedBullets, setOptimizedBullets] = useState(null);
   const [generatingResume, setGeneratingResume] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => {
+    // Check localStorage for saved preference
+    const saved = localStorage.getItem('darkMode');
+    return saved ? JSON.parse(saved) : false;
+  });
 
   // Helper function to parse AI-generated bullets from results
   const parseOptimizedBullets = (resultsText) => {
@@ -235,6 +240,20 @@ export default function ResumeOptimizer() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Save dark mode preference
+  useEffect(() => {
+    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [darkMode]);
+
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+  };
+
   // Guest mode: allow optimizer without login, but require login for experiences
   if (!session && currentView === 'experiences') {
     return <Auth />;
@@ -248,6 +267,22 @@ export default function ResumeOptimizer() {
   const copyToClipboard = async (text, sectionId) => {
     try {
       await navigator.clipboard.writeText(text);
+      setCopiedSections(prev => ({ ...prev, [sectionId]: true }));
+      setTimeout(() => {
+        setCopiedSections(prev => ({ ...prev, [sectionId]: false }));
+      }, 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  };
+
+  const copyForWord = async (text, sectionId) => {
+    try {
+      // Format bullets for Word: each line gets a bullet character
+      const lines = text.split('\n').filter(line => line.trim());
+      const formattedText = lines.map(line => `• ${line.trim()}`).join('\n');
+      
+      await navigator.clipboard.writeText(formattedText);
       setCopiedSections(prev => ({ ...prev, [sectionId]: true }));
       setTimeout(() => {
         setCopiedSections(prev => ({ ...prev, [sectionId]: false }));
@@ -516,37 +551,68 @@ export default function ResumeOptimizer() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4 sm:p-6">
+    <div className={`min-h-screen transition-colors duration-200 ${
+      darkMode 
+        ? 'bg-gradient-to-br from-gray-900 to-gray-800' 
+        : 'bg-gradient-to-br from-blue-50 to-indigo-100'
+    } p-4 sm:p-6`}>
       <div className="max-w-5xl mx-auto w-full">
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">ResuMend</h1>
-          <p className="text-gray-600">AI-powered resume tailoring for your dream job</p>
+        <div className="text-center mb-6 sm:mb-8">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 bg-clip-text text-transparent mb-2">
+            ResuMend
+          </h1>
+          <p className={`text-base sm:text-lg px-4 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>AI-powered resume tailoring for your dream job</p>
           
-          {session && (
-            <div className="flex justify-center mt-4">
+          <div className="flex justify-center items-center gap-3 mt-4">
+            {/* Dark Mode Toggle */}
+            <button
+              onClick={toggleDarkMode}
+              className={`flex items-center justify-center rounded-full p-2 shadow-md hover:shadow-lg transition border ${
+                darkMode 
+                  ? 'bg-gray-700 border-gray-600' 
+                  : 'bg-white border-gray-200'
+              }`}
+              title={darkMode ? "Switch to Light Mode" : "Switch to Dark Mode"}
+            >
+              {darkMode ? (
+                <Sun className="w-5 h-5 text-yellow-400" />
+              ) : (
+                <Moon className="w-5 h-5 text-gray-600" />
+              )}
+            </button>
+
+            {session && (
               <div className="relative">
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-2 bg-white rounded-full px-4 py-2 shadow-md hover:shadow-lg transition border border-gray-200"
+                  className={`flex items-center gap-2 rounded-full px-4 py-2 shadow-md hover:shadow-lg transition border ${
+                    darkMode 
+                      ? 'bg-gray-700 border-gray-600' 
+                      : 'bg-white border-gray-200'
+                  }`}
                 >
-                  <User className="w-5 h-5 text-gray-600" />
-                  <span className="text-sm text-gray-700">{session.user.email?.split('@')[0]}</span>
+                  <User className={`w-5 h-5 ${darkMode ? 'text-gray-300' : 'text-gray-600'}`} />
+                  <span className={`text-sm ${darkMode ? 'text-gray-200' : 'text-gray-700'}`}>{session.user.email?.split('@')[0]}</span>
                 </button>
                 
                 {showProfileMenu && (
-                  <div className="absolute top-full right-0 mt-2 bg-white rounded-lg shadow-xl border border-gray-200 w-64 z-20">
-                    <div className="p-4 border-b border-gray-100">
-                      <p className="text-sm font-medium text-gray-800">{session.user.email}</p>
-                      <p className="text-xs text-gray-500 mt-1">Free Plan</p>
+                  <div className={`absolute top-full right-0 mt-2 rounded-lg shadow-xl border w-64 z-20 ${
+                    darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+                  }`}>
+                    <div className={`p-4 border-b ${darkMode ? 'border-gray-700' : 'border-gray-100'}`}>
+                      <p className={`text-sm font-medium ${darkMode ? 'text-gray-200' : 'text-gray-800'}`}>{session.user.email}</p>
+                      <p className={`text-xs mt-1 ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>Free Plan</p>
                     </div>
                     
                     <div className="py-2">
                       <button
                         onClick={() => {
                           setShowProfileMenu(false);
-                          alert('Settings coming soon! Features planned:\n- Dark mode\n- Language preferences\n- Analysis speed options');
+                          alert('Settings coming soon! Features planned:\n- Language preferences\n- Analysis speed options');
                         }}
-                        className="w-full px-4 py-2 text-left text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-3"
+                        className={`w-full px-4 py-2 text-left text-sm flex items-center gap-3 ${
+                          darkMode ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-700 hover:bg-gray-50'
+                        }`}
                       >
                         <Settings className="w-4 h-4" />
                         Settings (Coming Soon)
@@ -566,8 +632,8 @@ export default function ResumeOptimizer() {
                   </div>
                 )}
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           {!session && (
             <button
@@ -579,14 +645,16 @@ export default function ResumeOptimizer() {
           )}
         </div>
 
-        <div className="flex gap-4 justify-center mt-4">
+        <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center mt-4">
           <div className="relative">
             <button
               onClick={() => setCurrentView('optimizer')}
-              className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+              className={`w-full sm:w-auto px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 text-sm sm:text-base ${
                 currentView === 'optimizer' 
                   ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : darkMode 
+                    ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
               Resume Optimizer
@@ -601,12 +669,14 @@ export default function ResumeOptimizer() {
             </button>
             
             {showInfo && currentView === 'optimizer' && (
-              <div className="absolute top-full mt-2 left-0 bg-white rounded-lg shadow-lg p-4 border border-gray-200 w-80 z-10">
+              <div className={`absolute top-full mt-2 left-0 right-0 sm:left-0 sm:right-auto rounded-lg shadow-lg p-4 border w-full sm:w-80 z-10 ${
+                darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+              }`}>
                 <div className="flex items-start justify-between mb-2">
-                  <h4 className="font-semibold text-gray-800">How to use Resume Optimizer:</h4>
-                  <button onClick={() => setShowInfo(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                  <h4 className={`font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>How to use Resume Optimizer:</h4>
+                  <button onClick={() => setShowInfo(false)} className={darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}>✕</button>
                 </div>
-                <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
+                <ol className={`list-decimal list-inside space-y-1 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                   <li>Upload your resume PDF or paste your resume text</li>
                   <li>Paste a job posting URL or the full job description</li>
                   <li>Click "Optimize Resume" to get AI recommendations</li>
@@ -629,13 +699,18 @@ export default function ResumeOptimizer() {
                   setCurrentView('experiences');
                 }
               }}
-              className={`px-4 py-2 rounded-lg font-medium transition flex items-center gap-2 ${
+              className={`w-full sm:w-auto px-4 py-2 rounded-lg font-medium transition flex items-center justify-center gap-2 text-sm sm:text-base ${
                 currentView === 'experiences' 
                   ? 'bg-blue-600 text-white' 
-                  : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                  : darkMode
+                    ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              Experience Library {!session && <span className="text-xs">(Sign up required)</span>}
+              <span className="flex items-center gap-2">
+                Experience Library 
+                {!session && <span className="text-xs hidden sm:inline">(Sign up required)</span>}
+              </span>
               <Info 
                 className="w-4 h-4 cursor-pointer" 
                 onClick={(e) => {
@@ -648,12 +723,14 @@ export default function ResumeOptimizer() {
             </button>
             
             {showInfo && currentView === 'experiences' && session && (
-              <div className="absolute top-full mt-2 right-0 bg-white rounded-lg shadow-lg p-4 border border-gray-200 w-80 z-10">
+              <div className={`absolute top-full mt-2 left-0 right-0 sm:left-auto sm:right-0 rounded-lg shadow-lg p-4 border w-full sm:w-80 z-10 ${
+                darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'
+              }`}>
                 <div className="flex items-start justify-between mb-2">
-                  <h4 className="font-semibold text-gray-800">How to use Experience Library:</h4>
-                  <button onClick={() => setShowInfo(false)} className="text-gray-400 hover:text-gray-600">✕</button>
+                  <h4 className={`font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>How to use Experience Library:</h4>
+                  <button onClick={() => setShowInfo(false)} className={darkMode ? 'text-gray-400 hover:text-gray-300' : 'text-gray-400 hover:text-gray-600'}>✕</button>
                 </div>
-                <ol className="list-decimal list-inside space-y-1 text-sm text-gray-600">
+                <ol className={`list-decimal list-inside space-y-1 text-sm ${darkMode ? 'text-gray-300' : 'text-gray-600'}`}>
                   <li>Add all your work experiences and responsibilities</li>
                   <li>Store everything - even items that don't fit on a standard resume</li>
                   <li>The AI will select the most relevant experiences for each job</li>
@@ -668,93 +745,155 @@ export default function ResumeOptimizer() {
           <>
             <div className="grid md:grid-cols-2 gap-6 mb-8 mt-8">
               {/* Resume Upload */}
-              <div className="bg-white rounded-lg shadow-md p-6">
+              <div className={`rounded-lg shadow-md p-6 h-full ${
+                darkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
                 <div className="flex items-center mb-4">
                   <FileText className="w-6 h-6 text-blue-600 mr-2" />
-                  <h2 className="text-xl font-semibold text-gray-800">Your Resume</h2>
+                  <h2 className={`text-xl font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Your Resume</h2>
                 </div>
-                {useAllExperiences ? (
-                  <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6 text-center">
-                    <p className="text-purple-800 font-medium">Using your saved experiences</p>
-                    <p className="text-sm text-purple-600 mt-1">Resume upload not needed</p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Option 1: Upload PDF
-                      </label>
-                      <label className="block">
-                        <div className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition ${
-                          resumeFile ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-blue-500'
-                        }`}>
-                          <Upload className={`w-12 h-12 mx-auto mb-3 ${resumeFile ? 'text-green-600' : 'text-gray-400'}`} />
-                          <p className="text-sm text-gray-600 mb-2">
-                            {resumeFile ? resumeFile.name : 'Click to upload resume PDF'}
-                          </p>
-                          {resumeFile && resumeText && (
-                            <div className="flex items-center justify-center text-green-600 text-sm">
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              Uploaded & extracted successfully
-                            </div>
-                          )}
-                          {resumeFile && !resumeText && (
-                            <div className="flex items-center justify-center text-yellow-600 text-sm">
-                              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                              Extracting text...
-                            </div>
-                          )}
+                <div className="space-y-4">
+                  {/* Option 1: Use Saved Experiences */}
+                  {session && (
+                    <>
+                      <div>
+                        <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          Option 1: Use Saved Experiences
+                        </label>
+                        <label className="inline-flex items-center gap-3 bg-purple-50 border-2 border-purple-200 rounded-lg px-6 py-3 cursor-pointer hover:bg-purple-100 transition w-full">
                           <input
-                            type="file"
-                            className="hidden"
-                            accept=".pdf"
-                            onChange={handleResumeUpload}
+                            type="checkbox"
+                            checked={useAllExperiences}
+                            onChange={(e) => {
+                              setUseAllExperiences(e.target.checked);
+                              if (e.target.checked) {
+                                // Clear resume inputs when using experiences
+                                setResumeText('');
+                                setResumeTextManual('');
+                                setResumeFile(null);
+                              }
+                            }}
+                            className="w-5 h-5 text-purple-600"
                           />
+                          <div className="text-left">
+                            <p className="font-semibold text-gray-800">Use My Saved Experiences</p>
+                            <p className="text-sm text-gray-600">AI will select the best experiences and craft optimized bullets for this job</p>
+                          </div>
+                        </label>
+                      </div>
+                      
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-gray-300"></div>
                         </div>
-                      </label>
-                    </div>
-                    
-                    <div className="relative">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-gray-300"></div>
+                        <div className="relative flex justify-center text-sm">
+                          <span className="px-2 bg-white text-gray-500">OR</span>
+                        </div>
                       </div>
-                      <div className="relative flex justify-center text-sm">
-                        <span className="px-2 bg-white text-gray-500">OR</span>
+                    </>
+                  )}
+                  
+                  {/* Show upload/paste options only when NOT using saved experiences */}
+                  {!useAllExperiences && (
+                    <>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          {session ? 'Option 2: Upload PDF' : 'Option 1: Upload PDF'}
+                        </label>
+                        <label className="block">
+                          <div className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition ${
+                            resumeFile ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-blue-500'
+                          }`}>
+                            <Upload className={`w-12 h-12 mx-auto mb-3 ${resumeFile ? 'text-green-600' : 'text-gray-400'}`} />
+                            <p className="text-sm text-gray-600 mb-2">
+                              {resumeFile ? resumeFile.name : 'Click to upload resume PDF'}
+                            </p>
+                            {resumeFile && resumeText && (
+                              <div className="flex items-center justify-center text-green-600 text-sm">
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                Uploaded & extracted successfully
+                              </div>
+                            )}
+                            {resumeFile && !resumeText && (
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-center text-yellow-600 text-sm mb-2">
+                                  <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                  Extracting text...
+                                </div>
+                                <div className="animate-pulse space-y-1 max-w-xs mx-auto">
+                                  <div className="h-2 bg-yellow-200 rounded w-full"></div>
+                                  <div className="h-2 bg-yellow-200 rounded w-5/6"></div>
+                                  <div className="h-2 bg-yellow-200 rounded w-4/5"></div>
+                                </div>
+                              </div>
+                            )}
+                            <input
+                              type="file"
+                              className="hidden"
+                              accept=".pdf"
+                              onChange={handleResumeUpload}
+                            />
+                          </div>
+                        </label>
                       </div>
-                    </div>
-                    
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">
-                        Option 2: Paste Resume Text
-                      </label>
-                      <textarea
-                        value={resumeTextManual}
-                        onChange={(e) => setResumeTextManual(e.target.value)}
-                        placeholder="Paste your resume text here..."
-                        rows={8}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
-                      />
-                    </div>
-                    
-                    {(resumeText || resumeTextManual) && (
-                      <div className="flex items-center text-green-600 text-sm">
-                        <CheckCircle className="w-4 h-4 mr-1" />
-                        Resume ready
+                      
+                      <div className="relative">
+                        <div className="absolute inset-0 flex items-center">
+                          <div className="w-full border-t border-gray-300"></div>
+                        </div>
+                        <div className="relative flex justify-center text-sm">
+                          <span className="px-2 bg-white text-gray-500">OR</span>
+                        </div>
                       </div>
-                    )}
-                  </div>
-                )}
+                      
+                      <div>
+                        <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                          {session ? 'Option 3: Paste Resume Text' : 'Option 2: Paste Resume Text'}
+                        </label>
+                        <textarea
+                          value={resumeTextManual}
+                          onChange={(e) => setResumeTextManual(e.target.value)}
+                          placeholder="Paste your resume text here..."
+                          rows={8}
+                          className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition resize-none ${
+                            darkMode 
+                              ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400' 
+                              : 'bg-white border-gray-300 text-gray-900 focus:border-blue-500'
+                          }`}
+                        />
+                      </div>
+                      
+                      {(resumeText || resumeTextManual) && (
+                        <div className="flex items-center text-green-600 text-sm">
+                          <CheckCircle className="w-4 h-4 mr-1" />
+                          Resume ready
+                        </div>
+                      )}
+                    </>
+                  )}
+                  
+                  {/* Show message when using saved experiences */}
+                  {useAllExperiences && (
+                    <div className="bg-purple-50 border-2 border-purple-200 rounded-lg p-6 text-center">
+                      <CheckCircle className="w-8 h-8 text-purple-600 mx-auto mb-2" />
+                      <p className="text-purple-800 font-medium">Using your saved experiences</p>
+                      <p className="text-sm text-purple-600 mt-1">Resume upload not needed</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Job Posting */}
-              <div className="bg-white rounded-lg shadow-md p-6">
+              <div className={`rounded-lg shadow-md p-6 h-full ${
+                darkMode ? 'bg-gray-800' : 'bg-white'
+              }`}>
                 <div className="flex items-center mb-4">
                   <Briefcase className="w-6 h-6 text-indigo-600 mr-2" />
-                  <h2 className="text-xl font-semibold text-gray-800">Job Posting</h2>
+                  <h2 className={`text-xl font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Job Posting</h2>
                 </div>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                       Option 1: Job Posting URL
                     </label>
                     <input
@@ -762,7 +901,11 @@ export default function ResumeOptimizer() {
                       value={jobUrl}
                       onChange={(e) => setJobUrl(e.target.value)}
                       placeholder="https://example.com/job-posting"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition"
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 focus:border-indigo-500'
+                      }`}
                     />
                     <button
                       onClick={fetchJobPosting}
@@ -782,23 +925,27 @@ export default function ResumeOptimizer() {
                   
                   <div className="relative">
                     <div className="absolute inset-0 flex items-center">
-                      <div className="w-full border-t border-gray-300"></div>
+                      <div className={`w-full border-t ${darkMode ? 'border-gray-600' : 'border-gray-300'}`}></div>
                     </div>
                     <div className="relative flex justify-center text-sm">
-                      <span className="px-2 bg-white text-gray-500">OR</span>
+                      <span className={`px-2 ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-500'}`}>OR</span>
                     </div>
                   </div>
                   
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
                       Option 2: Paste Job Description
                     </label>
                     <textarea
                       value={jobTextManual}
                       onChange={(e) => setJobTextManual(e.target.value)}
                       placeholder="Paste the full job description here..."
-                      rows={8}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition resize-none"
+                      rows={12}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition resize-none ${
+                        darkMode 
+                          ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400' 
+                          : 'bg-white border-gray-300 text-gray-900 focus:border-indigo-500'
+                      }`}
                     />
                   </div>
                   
@@ -814,31 +961,6 @@ export default function ResumeOptimizer() {
 
             {/* Analyze Button */}
             <div className="text-center mb-8">
-              {session && (
-                <div className="mb-4">
-                  <label className="inline-flex items-center gap-3 bg-purple-50 border-2 border-purple-200 rounded-lg px-6 py-3 cursor-pointer hover:bg-purple-100 transition">
-                    <input
-                      type="checkbox"
-                      checked={useAllExperiences}
-                      onChange={(e) => {
-                        setUseAllExperiences(e.target.checked);
-                        if (e.target.checked) {
-                          // Clear resume inputs when using experiences
-                          setResumeText('');
-                          setResumeTextManual('');
-                          setResumeFile(null);
-                        }
-                      }}
-                      className="w-5 h-5 text-purple-600"
-                    />
-                    <div className="text-left">
-                      <p className="font-semibold text-gray-800">Use All My Saved Experiences</p>
-                      <p className="text-sm text-gray-600">AI will select the best experiences and craft optimized bullets for this job</p>
-                    </div>
-                  </label>
-                </div>
-              )}
-              
               <button
                 onClick={analyzeResume}
                 disabled={
@@ -864,6 +986,50 @@ export default function ResumeOptimizer() {
               </button>
             </div>
 
+            {/* Loading Skeleton */}
+            {processing && !results && (
+              <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200 mb-8">
+                <div className="animate-pulse space-y-6">
+                  {/* Header Skeleton */}
+                  <div className="bg-gradient-to-r from-blue-200 to-indigo-200 h-16 rounded-lg"></div>
+                  
+                  {/* Section Skeletons */}
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                      <div className="h-6 bg-gray-300 rounded w-1/3 mb-4"></div>
+                      <div className="space-y-3">
+                        <div className="h-4 bg-gray-200 rounded w-full"></div>
+                        <div className="h-4 bg-gray-200 rounded w-5/6"></div>
+                        <div className="h-4 bg-gray-200 rounded w-4/5"></div>
+                      </div>
+                    </div>
+                  ))}
+                  
+                  {/* Bullet Points Skeleton */}
+                  <div className="bg-gray-50 rounded-lg p-6 border border-gray-200">
+                    <div className="h-6 bg-gray-300 rounded w-2/5 mb-4"></div>
+                    <div className="space-y-4">
+                      <div>
+                        <div className="h-5 bg-gray-300 rounded w-3/4 mb-2"></div>
+                        <div className="ml-4 space-y-2">
+                          <div className="h-3 bg-gray-200 rounded w-full"></div>
+                          <div className="h-3 bg-gray-200 rounded w-11/12"></div>
+                          <div className="h-3 bg-gray-200 rounded w-10/12"></div>
+                        </div>
+                      </div>
+                      <div>
+                        <div className="h-5 bg-gray-300 rounded w-3/4 mb-2"></div>
+                        <div className="ml-4 space-y-2">
+                          <div className="h-3 bg-gray-200 rounded w-full"></div>
+                          <div className="h-3 bg-gray-200 rounded w-11/12"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Error Display */}
             {error && (
               <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-8">
@@ -876,23 +1042,23 @@ export default function ResumeOptimizer() {
 
             {/* Generate Resume Button - Only show when using saved experiences and optimization is complete */}
             {results && useAllExperiences && session && (
-              <div className="mb-6 rounded-lg shadow-lg p-6 bg-gradient-to-r from-green-500 to-emerald-500">
-                <div className="flex items-center justify-between">
+              <div className="mb-6 rounded-lg shadow-lg p-4 sm:p-6 bg-gradient-to-r from-emerald-600 to-teal-600">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-xl font-bold text-white mb-1">
-                      Step 2: Generate Your Resume!
+                    <h3 className="text-lg sm:text-xl font-bold text-white mb-1">
+                      Step 2: Generate Your Resume! (Beta!)
                     </h3>
-                    <p className="text-white text-sm">
+                    <p className="text-white text-xs sm:text-sm">
                       Review the recommendations above, then click below to generate a professional PDF resume with these AI-optimized bullet points.
                     </p>
                   </div>
                   <button
                     onClick={handleGenerateResume}
                     disabled={generatingResume}
-                    className={`flex items-center gap-2 px-6 py-3 rounded-lg font-bold shadow-md whitespace-nowrap transition ${
+                    className={`flex items-center justify-center gap-2 px-6 py-3 rounded-lg font-bold shadow-md transition w-full sm:w-auto sm:whitespace-nowrap ${
                       generatingResume
                         ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                        : 'bg-white text-green-600 hover:bg-green-50'
+                        : 'bg-white text-emerald-700 hover:bg-emerald-50'
                     }`}
                   >
                     {generatingResume ? (
@@ -903,7 +1069,7 @@ export default function ResumeOptimizer() {
                     ) : (
                       <>
                         <Download className="w-5 h-5" />
-                        Generate Resume PDF
+                        Generate Resume PDF (Beta!)
                       </>
                     )}
                   </button>
@@ -911,11 +1077,55 @@ export default function ResumeOptimizer() {
               </div>
             )}
 
+            {/* PDF Generation Loading Skeleton */}
+            {generatingResume && (
+              <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200 mb-8">
+                <div className="animate-pulse space-y-6">
+                  {/* PDF Header Skeleton */}
+                  <div className="flex items-center justify-center mb-6">
+                    <div className="h-8 bg-gradient-to-r from-emerald-200 to-teal-200 rounded w-2/3"></div>
+                  </div>
+                  
+                  {/* PDF Content Skeleton */}
+                  <div className="space-y-4 border-2 border-gray-200 rounded-lg p-6">
+                    {/* Name/Header */}
+                    <div className="h-8 bg-gray-300 rounded w-1/2 mx-auto"></div>
+                    <div className="h-4 bg-gray-200 rounded w-1/3 mx-auto mb-6"></div>
+                    
+                    {/* Sections */}
+                    <div className="h-5 bg-emerald-200 rounded w-1/4 mb-3"></div>
+                    <div className="space-y-2 mb-6">
+                      <div className="h-3 bg-gray-200 rounded w-full"></div>
+                      <div className="h-3 bg-gray-200 rounded w-5/6"></div>
+                    </div>
+                    
+                    <div className="h-5 bg-emerald-200 rounded w-1/4 mb-3"></div>
+                    <div className="space-y-3 mb-6">
+                      <div>
+                        <div className="h-4 bg-gray-300 rounded w-2/3 mb-2"></div>
+                        <div className="ml-4 space-y-1">
+                          <div className="h-3 bg-gray-200 rounded w-full"></div>
+                          <div className="h-3 bg-gray-200 rounded w-11/12"></div>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="h-5 bg-emerald-200 rounded w-1/4 mb-3"></div>
+                    <div className="h-3 bg-gray-200 rounded w-4/5"></div>
+                  </div>
+                  
+                  <div className="text-center text-emerald-600 font-medium">
+                    Creating your professional resume...
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Results Display */}
             {results && (
-              <div className="bg-white rounded-lg shadow-lg p-8 border border-gray-200">
-                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-6 py-4 rounded-t-lg -mx-8 -mt-8 mb-8">
-                  <h2 className="text-2xl font-bold">Optimization Recommendations</h2>
+              <div className="bg-white rounded-lg shadow-lg p-4 sm:p-6 md:p-8 border border-gray-200">
+                <div className="bg-gradient-to-r from-blue-500 to-indigo-500 text-white px-4 sm:px-6 py-3 sm:py-4 rounded-t-lg -mx-4 sm:-mx-6 md:-mx-8 -mt-4 sm:-mt-6 md:-mt-8 mb-6 sm:mb-8">
+                  <h2 className="text-xl sm:text-2xl font-bold">Optimization Recommendations</h2>
                 </div>
                 
                 <div className="space-y-8">
@@ -931,36 +1141,61 @@ export default function ResumeOptimizer() {
                       const sectionId = `section-${idx}`;
                       
                       const isBulletPointsSection = headerText.toLowerCase().includes('bullet point') || 
-                                                     headerText.toLowerCase().includes('ready-to-use');
+                                                     headerText.toLowerCase().includes('ready-to-use') ||
+                                                     headerText.toLowerCase().includes('optimized bullet');
                       
-                      const bulletPoints = contentLines
-                        .filter(line => line.trim().startsWith('*') || line.trim().startsWith('-'))
-                        .map(line => line.replace(/^[*-]\s*/, '').replace(/\*\*/g, '').trim())
-                        .join('\n');
+                      // Collect all bullet points including those in subsections
+                      let allBulletPoints = [];
+                      contentLines.forEach((line, idx) => {
+                        const trimmed = line.trim();
+                        if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
+                          allBulletPoints.push(trimmed.replace(/^[*-]\s*/, '').replace(/\*\*/g, '').trim());
+                        }
+                      });
+                      
+                      const bulletPoints = allBulletPoints.join('\n');
                       
                       return (
-                        <div key={idx} className="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                          <div className="flex items-center justify-between mb-4 pb-2 border-b-2 border-blue-400">
-                            <h3 className="text-xl font-bold text-blue-600">
+                        <div key={idx} className="bg-gray-50 rounded-lg p-4 sm:p-6 border border-gray-200">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 pb-2 border-b-2 border-blue-400 gap-2">
+                            <h3 className="text-lg sm:text-xl font-bold text-blue-600">
                               {headerText}
                             </h3>
                             {isBulletPointsSection && bulletPoints && (
-                              <button
-                                onClick={() => copyToClipboard(bulletPoints, sectionId)}
-                                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-sm font-medium"
-                              >
-                                {copiedSections[sectionId] ? (
-                                  <>
-                                    <Check className="w-4 h-4" />
-                                    Copied!
-                                  </>
-                                ) : (
-                                  <>
-                                    <Copy className="w-4 h-4" />
-                                    Copy All
-                                  </>
-                                )}
-                              </button>
+                              <div className="flex gap-2 flex-wrap">
+                                <button
+                                  onClick={() => copyToClipboard(bulletPoints, sectionId)}
+                                  className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm font-medium"
+                                >
+                                  {copiedSections[sectionId] ? (
+                                    <>
+                                      <Check className="w-4 h-4" />
+                                      Copied!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Copy className="w-4 h-4" />
+                                      Copy All
+                                    </>
+                                  )}
+                                </button>
+                                <button
+                                  onClick={() => copyForWord(bulletPoints, `${sectionId}-word`)}
+                                  className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition text-xs sm:text-sm font-medium"
+                                >
+                                  {copiedSections[`${sectionId}-word`] ? (
+                                    <>
+                                      <Check className="w-4 h-4" />
+                                      Copied!
+                                    </>
+                                  ) : (
+                                    <>
+                                      <FileText className="w-4 h-4" />
+                                      Copy for Word
+                                    </>
+                                  )}
+                                </button>
+                              </div>
                             )}
                           </div>
                           <div className="space-y-3">
@@ -980,27 +1215,45 @@ export default function ResumeOptimizer() {
                                 
                                 return (
                                   <div key={lineIdx} className="mt-4">
-                                    <div className="flex items-center justify-between mb-2">
-                                      <p className="font-bold text-gray-900 text-base">
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 gap-2">
+                                      <p className="font-bold text-gray-900 text-sm sm:text-base">
                                         {trimmed.replace(/\*\*/g, '')}
                                       </p>
                                       {isBulletPointsSection && subBulletPoints.length > 0 && (
-                                        <button
-                                          onClick={() => copyToClipboard(subBulletPoints.join('\n'), subSectionId)}
-                                          className="flex items-center gap-1 px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition text-xs font-medium"
-                                        >
-                                          {copiedSections[subSectionId] ? (
-                                            <>
-                                              <Check className="w-3 h-3" />
-                                              Copied
-                                            </>
-                                          ) : (
-                                            <>
-                                              <Copy className="w-3 h-3" />
-                                              Copy
-                                            </>
-                                          )}
-                                        </button>
+                                        <div className="flex gap-2 flex-wrap">
+                                          <button
+                                            onClick={() => copyToClipboard(subBulletPoints.join('\n'), subSectionId)}
+                                            className="flex items-center gap-1 px-2 sm:px-3 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 transition text-xs font-medium"
+                                          >
+                                            {copiedSections[subSectionId] ? (
+                                              <>
+                                                <Check className="w-3 h-3" />
+                                                Copied
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Copy className="w-3 h-3" />
+                                                Copy
+                                              </>
+                                            )}
+                                          </button>
+                                          <button
+                                            onClick={() => copyForWord(subBulletPoints.join('\n'), `${subSectionId}-word`)}
+                                            className="flex items-center gap-1 px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 transition text-xs font-medium"
+                                          >
+                                            {copiedSections[`${subSectionId}-word`] ? (
+                                              <>
+                                                <Check className="w-3 h-3" />
+                                                Copied
+                                              </>
+                                            ) : (
+                                              <>
+                                                <FileText className="w-3 h-3" />
+                                                Word
+                                              </>
+                                            )}
+                                          </button>
+                                        </div>
                                       )}
                                     </div>
                                   </div>
@@ -1010,17 +1263,18 @@ export default function ResumeOptimizer() {
                               if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
                                 return (
                                   <div key={lineIdx} className="flex items-start ml-2">
-                                    <span className="text-blue-500 mr-3 mt-1">•</span>
-                                    <span className="text-gray-700 flex-1">
+                                    <span className="text-blue-500 mr-2 sm:mr-3 mt-1 flex-shrink-0">•</span>
+                                    <span className="text-gray-700 flex-1 text-sm sm:text-base">
                                       {trimmed.replace(/^[*-]\s*/, '').replace(/\*\*/g, '')}
                                     </span>
                                   </div>
                                 );
                               }
                               
-                              if (trimmed) {
+                              // Filter out markdown artifacts and empty content
+                              if (trimmed && trimmed !== '#' && !trimmed.match(/^#+$/)) {
                                 return (
-                                  <p key={lineIdx} className="text-gray-700 leading-relaxed">
+                                  <p key={lineIdx} className="text-gray-700 leading-relaxed text-sm sm:text-base">
                                     {trimmed.replace(/\*\*/g, '')}
                                   </p>
                                 );
@@ -1037,7 +1291,7 @@ export default function ResumeOptimizer() {
                   })}
                 </div>
                 
-                <div className="mt-8 pt-6 border-t border-gray-300 flex justify-center">
+                <div className="mt-6 sm:mt-8 pt-6 border-t border-gray-300 flex justify-center">
                   <button
                     onClick={() => {
                       setResults(null);
@@ -1050,7 +1304,7 @@ export default function ResumeOptimizer() {
                       setJobUrl('');
                       setCopiedSections({});
                     }}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg transition"
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 sm:px-8 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg transition w-full sm:w-auto"
                   >
                     Start New Analysis
                   </button>
@@ -1059,21 +1313,21 @@ export default function ResumeOptimizer() {
             )}
 
             {/* Contact Box */}
-            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-md p-6 border-2 border-blue-200 mt-8">
-              <div className="flex items-start gap-4">
-                <div className="bg-blue-600 rounded-full p-3">
-                  <Mail className="w-6 h-6 text-white" />
+            <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg shadow-md p-4 sm:p-6 border-2 border-blue-200 mt-6 sm:mt-8">
+              <div className="flex flex-col sm:flex-row items-start gap-4">
+                <div className="bg-blue-600 rounded-full p-3 mx-auto sm:mx-0">
+                  <Mail className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-lg font-semibold text-gray-800 mb-2">Have Suggestions?</h3>
-                  <p className="text-gray-600 mb-3">
+                <div className="flex-1 w-full">
+                  <h3 className="text-base sm:text-lg font-semibold text-gray-800 mb-2 text-center sm:text-left">Have Suggestions?</h3>
+                  <p className="text-sm sm:text-base text-gray-600 mb-3 text-center sm:text-left">
                     We'd love to hear your feedback and ideas to improve ResuMend! 
                   </p>
                   
                   {!showSuggestionBox ? (
                     <button
                       onClick={() => setShowSuggestionBox(true)}
-                      className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium"
+                      className="inline-flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium w-full sm:w-auto text-sm sm:text-base"
                     >
                       <Mail className="w-4 h-4" />
                       Have any ideas? Tell us here!
@@ -1087,11 +1341,11 @@ export default function ResumeOptimizer() {
                         rows={4}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition resize-none"
                       />
-                      <div className="flex gap-2">
+                      <div className="flex flex-col sm:flex-row gap-2">
                         <button
                           onClick={sendSuggestion}
                           disabled={suggestionSent}
-                          className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50"
+                          className="flex items-center justify-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition font-medium disabled:opacity-50 text-sm sm:text-base"
                         >
                           {suggestionSent ? (
                             <>
@@ -1110,7 +1364,7 @@ export default function ResumeOptimizer() {
                             setShowSuggestionBox(false);
                             setSuggestion('');
                           }}
-                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium"
+                          className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition font-medium text-sm sm:text-base"
                         >
                           Cancel
                         </button>
