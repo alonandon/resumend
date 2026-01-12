@@ -1376,7 +1376,7 @@ export default function ResumeOptimizer() {
             </div>
           </>
         ) : (
-          <ExperienceManager />
+          <ExperienceManager darkMode={darkMode} />
         )}
       </div>
     </div>

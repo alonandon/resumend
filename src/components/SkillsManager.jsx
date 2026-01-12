@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { Plus, Trash2, Tag } from 'lucide-react';
 
-export default function SkillsManager() {
+export default function SkillsManager({ darkMode = false }) {
   const [skills, setSkills] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newSkill, setNewSkill] = useState({
@@ -85,9 +85,9 @@ export default function SkillsManager() {
   }, {});
 
   return (
-    <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+    <div className={`rounded-lg shadow-md p-6 mb-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-bold text-gray-800">Skills</h2>
+        <h2 className={`text-2xl font-bold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Skills</h2>
         <button
           onClick={() => setShowAddForm(!showAddForm)}
           className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition"

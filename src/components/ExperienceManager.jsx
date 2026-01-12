@@ -7,7 +7,7 @@ import ProfileManager from './ProfileManager';
 import EducationManager from './EducationManager';
 import { generateHarvardResumePDF } from '../lib/generateHarvardResume';
 
-export default function ExperienceManager({ optimizedBullets = null }) {
+export default function ExperienceManager({ optimizedBullets = null, darkMode = false }) {
   const [activeTab, setActiveTab] = useState('profile');
   const [experiences, setExperiences] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
@@ -261,7 +261,9 @@ export default function ExperienceManager({ optimizedBullets = null }) {
           className={`px-6 py-3 rounded-lg font-medium transition ${
             activeTab === 'profile'
               ? 'bg-blue-600 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              : darkMode
+                ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           }`}
         >
           Profile
@@ -271,7 +273,9 @@ export default function ExperienceManager({ optimizedBullets = null }) {
           className={`px-6 py-3 rounded-lg font-medium transition ${
             activeTab === 'education'
               ? 'bg-blue-600 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              : darkMode
+                ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           }`}
         >
           Education
@@ -281,7 +285,9 @@ export default function ExperienceManager({ optimizedBullets = null }) {
           className={`px-6 py-3 rounded-lg font-medium transition ${
             activeTab === 'experiences'
               ? 'bg-blue-600 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              : darkMode
+                ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           }`}
         >
           Experience
@@ -291,7 +297,9 @@ export default function ExperienceManager({ optimizedBullets = null }) {
           className={`px-6 py-3 rounded-lg font-medium transition ${
             activeTab === 'skills'
               ? 'bg-green-600 text-white'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              : darkMode
+                ? 'bg-gray-700 text-gray-200 hover:bg-gray-600'
+                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           }`}
         >
           Skills
@@ -299,13 +307,13 @@ export default function ExperienceManager({ optimizedBullets = null }) {
       </div>
 
       {/* Content */}
-      {activeTab === 'profile' && <ProfileManager />}
-      {activeTab === 'education' && <EducationManager />}
-      {activeTab === 'skills' && <SkillsManager />}
+      {activeTab === 'profile' && <ProfileManager darkMode={darkMode} />}
+      {activeTab === 'education' && <EducationManager darkMode={darkMode} />}
+      {activeTab === 'skills' && <SkillsManager darkMode={darkMode} />}
       {activeTab === 'experiences' && (
-        <div className="bg-white rounded-lg shadow-md p-6 mb-8">
+        <div className={`rounded-lg shadow-md p-6 mb-8 ${darkMode ? 'bg-gray-800' : 'bg-white'}`}>
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-gray-800">Work Experience</h2>
+            <h2 className={`text-2xl font-bold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Work Experience</h2>
             <button
               onClick={() => setShowAddForm(!showAddForm)}
               className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition"
@@ -315,26 +323,30 @@ export default function ExperienceManager({ optimizedBullets = null }) {
             </button>
           </div>
 
-          <ResumeImport onImportComplete={fetchExperiences} />
+          <ResumeImport onImportComplete={fetchExperiences} darkMode={darkMode} />
 
           {(showAddForm || editingId) && (
-            <form onSubmit={editingId ? updateExperience : addExperience} className="bg-gray-50 rounded-lg p-6 mb-6 border border-gray-200">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4">
+            <form onSubmit={editingId ? updateExperience : addExperience} className={`rounded-lg p-6 mb-6 border ${
+              darkMode ? 'bg-gray-700 border-gray-600' : 'bg-gray-50 border-gray-200'
+            }`}>
+              <h3 className={`text-lg font-semibold mb-4 ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>
                 {editingId ? 'Edit Experience' : 'Add Experience Manually'}
               </h3>
               <div className="grid md:grid-cols-2 gap-4 mb-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Company</label>
+                  <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Company</label>
                   <input
                     type="text"
                     required
                     value={newExperience.company}
                     onChange={(e) => setNewExperience({...newExperience, company: e.target.value})}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none ${
+                      darkMode ? 'bg-gray-600 border-gray-500 text-gray-100' : 'border-gray-300'
+                    }`}
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Job Title</label>
+                  <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>Job Title</label>
                   <input
                     type="text"
                     required
