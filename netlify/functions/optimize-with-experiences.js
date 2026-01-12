@@ -47,7 +47,12 @@ export const handler = async (event) => {
       throw new Error('No experiences provided');
     }
 
-    // Format experiences for the prompt
+    // SAFE OPTIMIZATION 1: Truncate very long job postings to 6000 chars (keeps most content)
+    const truncatedJobText = jobText.length > 6000 
+      ? jobText.substring(0, 6000) + '\n\n[Note: Job posting was long and has been truncated for processing]' 
+      : jobText;
+
+    // Format experiences for the prompt (NO LIMITS - keep all experiences)
     const formattedExperiences = experiences.map(exp => {
       const responsibilities = exp.responsibilities?.map(r => r.description).join('\n  - ') || '';
       return `
@@ -58,8 +63,11 @@ Responsibilities:
 `;
     }).join('\n\n');
 
-    // Format skills
-    const formattedSkills = skills?.map(s => `${s.skill_name} (${s.proficiency_level})`).join(', ') || 'None provided';
+    // SAFE OPTIMIZATION 2: Limit skills to 20 (keeps most) and keep proficiency level
+    const formattedSkills = skills?.slice(0, 20).map(s => `${s.skill_name} (${s.proficiency_level || 'Intermediate'})`).join(', ') || 'None provided';
+
+    console.log('Making API request with streaming...');
+    const startTime = Date.now();
 
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -70,13 +78,14 @@ Responsibilities:
       },
       body: JSON.stringify({
         model: "claude-sonnet-4-20250514",
-        max_tokens: 4000,
+        max_tokens: 3000, // SAFE OPTIMIZATION 3: Reduced from 4000 to 3000 (still good quality)
+        stream: false, // Note: Netlify functions don't support streaming responses easily
         messages: [{
           role: "user",
           content: `You are a professional resume optimization expert. Your PRIMARY GOAL is to tailor the candidate's resume to match the specific job posting below. Every recommendation must directly align with the job posting requirements.
 
 JOB POSTING (THIS IS WHAT YOU MUST OPTIMIZE FOR):
-${jobText}
+${truncatedJobText}
 
 CANDIDATE'S COMPLETE WORK HISTORY:
 ${formattedExperiences}
@@ -107,6 +116,12 @@ Please provide:
    - Quantify achievements where possible
    - Are ready to copy and paste directly into a resume
 
+Format these as:
+### [Job Title] - [Company]
+* Bullet point 1
+* Bullet point 2
+* Bullet point 3
+
 5. SKILLS TO EMPHASIZE: From the candidate's skills list, identify which skills are mentioned or implied in the job posting and should be featured prominently.
 
 6. ADDITIONAL RECOMMENDATIONS: Suggest specific improvements to better position the candidate for THIS SPECIFIC ROLE, referencing the job posting requirements.
@@ -115,6 +130,9 @@ Format your response with clear markdown headers (##) for each section. Make the
         }]
       })
     });
+
+    const elapsed = Date.now() - startTime;
+    console.log(`API request completed in ${elapsed}ms`);
 
     if (!response.ok) {
       const errorText = await response.text();

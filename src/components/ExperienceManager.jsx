@@ -1,14 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Briefcase, Edit } from 'lucide-react';
+import { Plus, Trash2, Briefcase, Edit, Download, FileText, AlertCircle } from 'lucide-react';
 import ResumeImport from './ResumeImport';
 import SkillsManager from './SkillsManager';
+import ProfileManager from './ProfileManager';
+import EducationManager from './EducationManager';
+import { generateHarvardResumePDF } from '../lib/generateHarvardResume';
 
-export default function ExperienceManager() {
-  const [activeTab, setActiveTab] = useState('experiences');
+export default function ExperienceManager({ optimizedBullets = null }) {
+  const [activeTab, setActiveTab] = useState('profile');
   const [experiences, setExperiences] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [generatingResume, setGeneratingResume] = useState(false);
   const [newExperience, setNewExperience] = useState({
     company: '',
     job_title: '',
@@ -38,17 +42,73 @@ export default function ExperienceManager() {
     }
   };
 
+  const handleGenerateResume = async () => {
+    setGeneratingResume(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        alert('Please sign in to generate your resume');
+        setGeneratingResume(false);
+        return;
+      }
+
+      // Fetch all data
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+
+      if (!profile) {
+        alert('Please complete your profile information first (Profile tab)');
+        setGeneratingResume(false);
+        return;
+      }
+
+      const { data: education } = await supabase
+        .from('education')
+        .select('*')
+        .order('end_date', { ascending: false });
+
+      const { data: experiences } = await supabase
+        .from('experiences')
+        .select(`
+          *,
+          responsibilities (*)
+        `)
+        .order('start_date', { ascending: false });
+
+      const { data: skills } = await supabase
+        .from('skills')
+        .select('*');
+
+      // Generate PDF with optimized bullets if available
+      await generateHarvardResumePDF(
+        profile, 
+        education || [], 
+        experiences || [], 
+        skills || [],
+        optimizedBullets
+      );
+      
+      alert('Resume generated successfully!');
+    } catch (error) {
+      console.error('Error generating resume:', error);
+      alert('Failed to generate resume. Please try again.');
+    } finally {
+      setGeneratingResume(false);
+    }
+  };
+
   const addExperience = async (e) => {
     e.preventDefault();
     
-    // Get current user
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       alert('You must be logged in to add experiences');
       return;
     }
 
-    // Prepare experience data with user_id and handle empty dates
     const experienceData = {
       ...newExperience,
       user_id: user.id,
@@ -160,7 +220,6 @@ export default function ExperienceManager() {
       return;
     }
 
-    // Delete old responsibilities
     const { error: deleteError } = await supabase
       .from('responsibilities')
       .delete()
@@ -171,7 +230,6 @@ export default function ExperienceManager() {
       return;
     }
 
-    // Insert new responsibilities
     const responsibilitiesToInsert = responsibilities
       .filter(r => r.trim())
       .map(r => ({
@@ -196,8 +254,90 @@ export default function ExperienceManager() {
 
   return (
     <div className="mt-8">
+      {/* Generate Resume Button */}
+      <div className={`mb-6 rounded-lg shadow-lg p-6 ${
+        optimizedBullets 
+          ? 'bg-gradient-to-r from-green-500 to-emerald-500' 
+          : 'bg-gradient-to-r from-gray-400 to-gray-500'
+      }`}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xl font-bold text-white mb-1">
+              {optimizedBullets ? 'Ready to Generate Your Resume!' : 'Optimize First to Generate Resume'}
+            </h3>
+            <p className="text-white text-sm">
+              {optimizedBullets 
+                ? 'Your optimized bullets are ready! Complete your profile, education, and skills, then generate your professional resume.'
+                : 'Run the Resume Optimizer first to generate AI-enhanced bullet points, then come here to create your resume.'}
+            </p>
+          </div>
+          <button
+            onClick={handleGenerateResume}
+            disabled={generatingResume || !optimizedBullets}
+            className={`flex items-center gap-2 px-6 py-3 rounded-lg font-bold shadow-md whitespace-nowrap transition ${
+              optimizedBullets
+                ? 'bg-white text-green-600 hover:bg-green-50'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+          >
+            {generatingResume ? (
+              <>
+                <FileText className="w-5 h-5 animate-pulse" />
+                Generating...
+              </>
+            ) : !optimizedBullets ? (
+              <>
+                <AlertCircle className="w-5 h-5" />
+                Optimize First
+              </>
+            ) : (
+              <>
+                <Download className="w-5 h-5" />
+                Generate Resume PDF
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Info message if no optimization */}
+      {!optimizedBullets && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div>
+              <p className="text-sm text-blue-800 font-medium">Resume generation requires optimization first</p>
+              <p className="text-sm text-blue-600 mt-1">
+                Go to the <strong>Resume Optimizer</strong> tab, upload your resume and a job posting, 
+                then click "Optimize Resume". Once complete, return here to generate your PDF.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-6 flex-wrap">
+        <button
+          onClick={() => setActiveTab('profile')}
+          className={`px-6 py-3 rounded-lg font-medium transition ${
+            activeTab === 'profile'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          Profile
+        </button>
+        <button
+          onClick={() => setActiveTab('education')}
+          className={`px-6 py-3 rounded-lg font-medium transition ${
+            activeTab === 'education'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+          }`}
+        >
+          Education
+        </button>
         <button
           onClick={() => setActiveTab('experiences')}
           className={`px-6 py-3 rounded-lg font-medium transition ${
@@ -206,7 +346,7 @@ export default function ExperienceManager() {
               : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
           }`}
         >
-          Experiences
+          Experience
         </button>
         <button
           onClick={() => setActiveTab('skills')}
@@ -221,7 +361,10 @@ export default function ExperienceManager() {
       </div>
 
       {/* Content */}
-      {activeTab === 'experiences' ? (
+      {activeTab === 'profile' && <ProfileManager />}
+      {activeTab === 'education' && <EducationManager />}
+      {activeTab === 'skills' && <SkillsManager />}
+      {activeTab === 'experiences' && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-8">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold text-gray-800">Work Experience</h2>
@@ -402,8 +545,6 @@ export default function ExperienceManager() {
             )}
           </div>
         </div>
-      ) : (
-        <SkillsManager />
       )}
     </div>
   );
