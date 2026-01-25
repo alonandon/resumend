@@ -33,8 +33,9 @@ export const handler = async (event) => {
       throw new Error('API key not configured');
     }
 
-    console.log('Searching for job posting at URL:', url);
+    console.log('Fetching job posting from URL:', url);
 
+    // Strategy: Try web_fetch first, fallback to web_search if needed
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -47,20 +48,82 @@ export const handler = async (event) => {
         max_tokens: 4000,
         messages: [{
           role: "user",
-          content: `Search the web for the job posting at this URL: ${url}
+          content: `Please fetch the job posting from this URL: ${url}
 
-Extract and return the full job description including responsibilities, requirements, and qualifications. Be thorough and capture all relevant details.`
+Extract and return the complete job posting content including:
+- Job title
+- Company name
+- Location
+- Job description/summary
+- Responsibilities and duties
+- Required qualifications
+- Preferred qualifications
+- Benefits (if mentioned)
+- Salary range (if mentioned)
+- Any other relevant details
+
+Provide a thorough extraction of the job posting content. Exclude navigation menus, footers, ads, and other unrelated page elements.`
         }],
-        tools: [{
-          type: "web_search_20250305",
-          name: "web_search"
-        }]
+        tools: [
+          {
+            type: "web_fetch_20250305",
+            name: "web_fetch"
+          },
+          {
+            type: "web_search_20250305",
+            name: "web_search"
+          }
+        ]
       })
     });
 
     const data = await response.json();
-    console.log('Job fetch response type:', data.type);
+    console.log('API Response:', {
+      type: data.type,
+      stop_reason: data.stop_reason,
+      content_blocks: data.content?.length,
+      has_error: !!data.error
+    });
+
+    // Check for API errors
+    if (data.error) {
+      throw new Error(data.error.message || 'API returned an error');
+    }
+
+    // Extract text content from the response
+    let extractedText = '';
+    let hasToolUse = false;
     
+    if (data.content) {
+      for (const block of data.content) {
+        if (block.type === 'text') {
+          extractedText += block.text + '\n';
+        } else if (block.type === 'tool_use') {
+          hasToolUse = true;
+          console.log('Tool used:', block.name);
+        }
+      }
+    }
+
+    // If we got content, return it
+    if (extractedText.trim()) {
+      console.log('Successfully extracted job posting content');
+      return {
+        statusCode: 200,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+      };
+    }
+
+    // If no content extracted but tools were used, there might be an issue
+    if (hasToolUse && !extractedText.trim()) {
+      console.warn('Tools were used but no text content was extracted');
+    }
+
+    // Return the data regardless - let the frontend handle it
     return {
       statusCode: 200,
       headers: {
@@ -69,6 +132,7 @@ Extract and return the full job description including responsibilities, requirem
       },
       body: JSON.stringify(data)
     };
+
   } catch (error) {
     console.error('Function error:', error);
     return {
@@ -77,7 +141,10 @@ Extract and return the full job description including responsibilities, requirem
         'Access-Control-Allow-Origin': '*',
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ error: error.message })
+      body: JSON.stringify({ 
+        error: error.message,
+        details: 'Failed to fetch job posting. The URL may be inaccessible or require authentication.'
+      })
     };
   }
 };
