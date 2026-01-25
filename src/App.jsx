@@ -19,10 +19,8 @@ export default function ResumeOptimizer() {
   const [session, setSession] = useState(null);
   const [resumeFile, setResumeFile] = useState(null);
   const [resumeTextManual, setResumeTextManual] = useState('');
-  const [jobUrl, setJobUrl] = useState('');
   const [jobTextManual, setJobTextManual] = useState('');
   const [resumeText, setResumeText] = useState('');
-  const [jobText, setJobText] = useState('');
   const [processing, setProcessing] = useState(false);
   const [processingProgress, setProcessingProgress] = useState('');
   const [results, setResults] = useState(null);
@@ -366,55 +364,12 @@ export default function ResumeOptimizer() {
     }
   };
 
-  const fetchJobPosting = async () => {
-    if (!jobUrl) return;
-    
-    setError('');
-    setProcessing(true);
-    
-    try {
-      const response = await fetch(`${API_BASE}/fetch-job`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          url: jobUrl
-        })
-      });
-
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error.message || 'API error');
-      }
-      
-      let extractedText = '';
-      
-      for (const block of data.content) {
-        if (block.type === 'text') {
-          extractedText += block.text + '\n';
-        }
-      }
-      
-      if (!extractedText.trim()) {
-        throw new Error('No content extracted from URL. Try pasting the job description manually.');
-      }
-      
-      setJobText(extractedText);
-    } catch (err) {
-      setError(`Failed to fetch job posting: ${err.message}`);
-    } finally {
-      setProcessing(false);
-    }
-  };
-
   const analyzeResume = async () => {
-    const finalJobText = jobText || jobTextManual;
+    const finalJobText = jobTextManual;
     const finalResumeText = resumeText || resumeTextManual;
     
     if (!finalJobText) {
-      setError('Please provide a job posting (either fetch from URL or paste text)');
+      setError('Please paste a job posting');
       return;
     }
 
@@ -891,70 +846,67 @@ export default function ResumeOptimizer() {
                   <Briefcase className="w-6 h-6 text-indigo-600 mr-2" />
                   <h2 className={`text-xl font-semibold ${darkMode ? 'text-gray-100' : 'text-gray-800'}`}>Job Posting</h2>
                 </div>
-                <div className="space-y-4">
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Option 1: Job Posting URL
-                    </label>
-                    <input
-                      type="url"
-                      value={jobUrl}
-                      onChange={(e) => setJobUrl(e.target.value)}
-                      placeholder="https://example.com/job-posting"
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition ${
-                        darkMode 
-                          ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400' 
-                          : 'bg-white border-gray-300 text-gray-900 focus:border-indigo-500'
-                      }`}
-                    />
-                    <button
-                      onClick={fetchJobPosting}
-                      disabled={!jobUrl || processing}
-                      className="mt-2 w-full bg-indigo-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-indigo-700 transition disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {processing && !results ? (
-                        <span className="flex items-center justify-center">
-                          <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                          Fetching...
-                        </span>
+                
+                {/* Helpful tip box */}
+                <div className={`mb-4 p-4 rounded-lg border ${
+                  darkMode 
+                    ? 'bg-indigo-900/20 border-indigo-700' 
+                    : 'bg-indigo-50 border-indigo-200'
+                }`}>
+                  <div className="flex items-start">
+                    <Info className="w-5 h-5 text-indigo-600 mr-2 flex-shrink-0 mt-0.5" />
+                    <div className={`text-sm ${darkMode ? 'text-indigo-200' : 'text-indigo-800'}`}>
+                      <p className="font-medium mb-1">💡 How to get the best results:</p>
+                      <ul className="list-disc list-inside space-y-1 ml-2">
+                        <li>Copy the <strong>entire job posting</strong> from the company's website</li>
+                        <li>Include job title, description, requirements, and qualifications</li>
+                        <li>The more complete the posting, the better the analysis</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Main textarea */}
+                <div>
+                  <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                    Paste Job Description <span className="text-red-500">*</span>
+                  </label>
+                  <textarea
+                    value={jobTextManual}
+                    onChange={(e) => setJobTextManual(e.target.value)}
+                    placeholder="Paste the complete job posting here...
+
+Example:
+Senior Software Engineer at TechCo
+
+About the role:
+We're looking for an experienced software engineer...
+
+Responsibilities:
+• Design and implement scalable systems
+• Collaborate with cross-functional teams
+...
+
+Requirements:
+• 5+ years of software development experience
+• Strong knowledge of Python and JavaScript
+..."
+                    rows={16}
+                    className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition resize-none font-mono text-sm ${
+                      darkMode 
+                        ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400' 
+                        : 'bg-white border-gray-300 text-gray-900 focus:border-indigo-500'
+                    }`}
+                  />
+                  <div className="mt-2 flex items-center justify-between">
+                    <p className={`text-xs ${darkMode ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {jobTextManual.length > 0 ? (
+                        <span className="text-green-600">✓ {jobTextManual.length} characters - ready to analyze</span>
                       ) : (
-                        'Fetch Job Posting'
+                        <span>Paste your job posting to get started</span>
                       )}
-                    </button>
+                    </p>
                   </div>
-                  
-                  <div className="relative">
-                    <div className="absolute inset-0 flex items-center">
-                      <div className={`w-full border-t ${darkMode ? 'border-gray-600' : 'border-gray-300'}`}></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                      <span className={`px-2 ${darkMode ? 'bg-gray-800 text-gray-400' : 'bg-white text-gray-500'}`}>OR</span>
-                    </div>
-                  </div>
-                  
-                  <div>
-                    <label className={`block text-sm font-medium mb-2 ${darkMode ? 'text-gray-300' : 'text-gray-700'}`}>
-                      Option 2: Paste Job Description
-                    </label>
-                    <textarea
-                      value={jobTextManual}
-                      onChange={(e) => setJobTextManual(e.target.value)}
-                      placeholder="Paste the full job description here..."
-                      rows={12}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-indigo-500 outline-none transition resize-none ${
-                        darkMode 
-                          ? 'bg-gray-700 border-gray-600 text-gray-100 placeholder-gray-400' 
-                          : 'bg-white border-gray-300 text-gray-900 focus:border-indigo-500'
-                      }`}
-                    />
-                  </div>
-                  
-                  {(jobText || jobTextManual) && (
-                    <div className="flex items-center text-green-600 text-sm">
-                      <CheckCircle className="w-4 h-4 mr-1" />
-                      Job posting ready
-                    </div>
-                  )}
                 </div>
               </div>
             </div>
@@ -965,7 +917,7 @@ export default function ResumeOptimizer() {
                 onClick={analyzeResume}
                 disabled={
                   (useAllExperiences ? !session : (!resumeText && !resumeTextManual)) || 
-                  (!jobText && !jobTextManual) || 
+                  !jobTextManual || 
                   processing
                 }
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-lg font-semibold shadow-lg hover:shadow-xl transition disabled:opacity-50 disabled:cursor-not-allowed"
