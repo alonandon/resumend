@@ -35,7 +35,6 @@ export const handler = async (event) => {
 
     console.log('Fetching job posting from URL:', url);
 
-    // Strategy: Try web_fetch first, fallback to web_search if needed
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -48,82 +47,32 @@ export const handler = async (event) => {
         max_tokens: 4000,
         messages: [{
           role: "user",
-          content: `Please fetch the job posting from this URL: ${url}
+          content: `Search for and extract the complete job posting from this URL: ${url}
 
-Extract and return the complete job posting content including:
+Please provide the full job posting content including:
 - Job title
 - Company name
 - Location
-- Job description/summary
-- Responsibilities and duties
+- Complete job description
+- All responsibilities and duties
 - Required qualifications
 - Preferred qualifications
 - Benefits (if mentioned)
 - Salary range (if mentioned)
 - Any other relevant details
 
-Provide a thorough extraction of the job posting content. Exclude navigation menus, footers, ads, and other unrelated page elements.`
+Be thorough and extract all the job-related content. Focus only on the actual job posting information.`
         }],
-        tools: [
-          {
-            type: "web_fetch_20250305",
-            name: "web_fetch"
-          },
-          {
-            type: "web_search_20250305",
-            name: "web_search"
-          }
-        ]
+        tools: [{
+          type: "web_search_20250305",
+          name: "web_search"
+        }]
       })
     });
 
     const data = await response.json();
-    console.log('API Response:', {
-      type: data.type,
-      stop_reason: data.stop_reason,
-      content_blocks: data.content?.length,
-      has_error: !!data.error
-    });
-
-    // Check for API errors
-    if (data.error) {
-      throw new Error(data.error.message || 'API returned an error');
-    }
-
-    // Extract text content from the response
-    let extractedText = '';
-    let hasToolUse = false;
+    console.log('Job fetch response type:', data.type);
     
-    if (data.content) {
-      for (const block of data.content) {
-        if (block.type === 'text') {
-          extractedText += block.text + '\n';
-        } else if (block.type === 'tool_use') {
-          hasToolUse = true;
-          console.log('Tool used:', block.name);
-        }
-      }
-    }
-
-    // If we got content, return it
-    if (extractedText.trim()) {
-      console.log('Successfully extracted job posting content');
-      return {
-        statusCode: 200,
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-      };
-    }
-
-    // If no content extracted but tools were used, there might be an issue
-    if (hasToolUse && !extractedText.trim()) {
-      console.warn('Tools were used but no text content was extracted');
-    }
-
-    // Return the data regardless - let the frontend handle it
     return {
       statusCode: 200,
       headers: {
@@ -132,7 +81,6 @@ Provide a thorough extraction of the job posting content. Exclude navigation men
       },
       body: JSON.stringify(data)
     };
-
   } catch (error) {
     console.error('Function error:', error);
     return {
