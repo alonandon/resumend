@@ -5,6 +5,7 @@ import Auth from './components/Auth';
 import ExperienceManager from './components/ExperienceManager';
 import { trackUsage } from './lib/trackUsage';
 import { generateHarvardResumePDF } from './lib/generateHarvardResume';
+import { callFunction } from './lib/api';
 
 console.log('Imports successful');
 console.log('Supabase:', supabase);
@@ -182,6 +183,7 @@ export default function ResumeOptimizer() {
       const { data: education } = await supabase
         .from('education')
         .select('*')
+        .eq('user_id', user.id)
         .order('end_date', { ascending: false });
 
       const { data: experiences } = await supabase
@@ -190,11 +192,13 @@ export default function ResumeOptimizer() {
           *,
           responsibilities (*)
         `)
+        .eq('user_id', user.id)
         .order('start_date', { ascending: false });
 
       const { data: skills } = await supabase
         .from('skills')
-        .select('*');
+        .select('*')
+        .eq('user_id', user.id);
 
       console.log('Generating PDF with data:', {
         profile: profile?.full_name,
@@ -263,11 +267,6 @@ export default function ResumeOptimizer() {
     return <Auth />;
   }
 
-  // Determine if we're running locally or on Netlify
-  const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:8888/.netlify/functions'
-    : '/.netlify/functions';
-
   const copyToClipboard = async (text, sectionId) => {
     try {
       await navigator.clipboard.writeText(text);
@@ -323,27 +322,8 @@ export default function ResumeOptimizer() {
         r.readAsDataURL(file);
       });
       
-      const response = await fetch(`${API_BASE}/extract-pdf`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          pdfData: base64Data
-        })
-      });
-
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error.message || data.error);
-      }
-      
-      if (!data.content || !data.content[0] || !data.content[0].text) {
-        throw new Error('No text content returned from API');
-      }
-      
-      return data.content[0].text;
+      const { text } = await callFunction('extract-pdf', { pdfData: base64Data });
+      return text;
     } catch (err) {
       console.error('PDF extraction error:', err);
       throw new Error(`PDF extraction failed: ${err.message}`);
@@ -408,13 +388,15 @@ export default function ResumeOptimizer() {
             *,
             responsibilities (*)
           `)
+          .eq('user_id', session.user.id)
           .order('start_date', { ascending: false });
 
         if (expError) throw expError;
 
         const { data: skillsData, error: skillsError } = await supabase
           .from('skills')
-          .select('*');
+          .select('*')
+          .eq('user_id', session.user.id);
 
         if (skillsError) throw skillsError;
 
@@ -432,25 +414,11 @@ export default function ResumeOptimizer() {
         progressTimers.push(setTimeout(() => setProcessingProgress('Generating optimized bullet points...'), 8000));
         progressTimers.push(setTimeout(() => setProcessingProgress('Finalizing recommendations...'), 15000));
         
-        const analysisResponse = await fetch(`${API_BASE}/optimize-with-experiences`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            experiences: experiencesData,
-            skills: skillsData,
-            jobText: finalJobText
-          })
+        const { text: analysis } = await callFunction('optimize-with-experiences', {
+          experiences: experiencesData,
+          skills: skillsData,
+          jobText: finalJobText
         });
-
-        const analysisData = await analysisResponse.json();
-        
-        if (analysisData.error) {
-          throw new Error(analysisData.error);
-        }
-        
-        const analysis = analysisData.content[0].text;
         setResults(analysis);
         setProcessingProgress('');
 
@@ -467,24 +435,10 @@ export default function ResumeOptimizer() {
         progressTimers.push(setTimeout(() => setProcessingProgress('Generating recommendations...'), 5000));
         
         // Original analyze-resume function
-        const analysisResponse = await fetch(`${API_BASE}/analyze-resume`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            resumeText: finalResumeText,
-            jobText: finalJobText
-          })
+        const { text: analysis } = await callFunction('analyze-resume', {
+          resumeText: finalResumeText,
+          jobText: finalJobText
         });
-
-        const analysisData = await analysisResponse.json();
-        
-        if (analysisData.error) {
-          throw new Error(analysisData.error);
-        }
-        
-        const analysis = analysisData.content[0].text;
         setResults(analysis);
         setProcessingProgress('');
 

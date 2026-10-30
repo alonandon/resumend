@@ -1,48 +1,11 @@
-export const handler = async (event) => {
-  console.log('analyze-resume function called!');
-  console.log('Method:', event.httpMethod);
-  
-  // Handle CORS preflight
-  if (event.httpMethod === 'OPTIONS') {
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Headers': 'Content-Type',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      },
-      body: ''
-    };
-  }
+import { createHandler, HttpError } from '../lib/http.js';
+import { generateText } from '../lib/anthropic.js';
 
-  if (event.httpMethod !== 'POST') {
-    return { 
-      statusCode: 405,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ error: 'Method Not Allowed' })
-    };
-  }
+export const handler = createHandler('analyze-resume', async ({ resumeText, jobText }) => {
+  if (!resumeText?.trim()) throw new HttpError(400, 'Resume text is required.');
+  if (!jobText?.trim()) throw new HttpError(400, 'Job posting text is required.');
 
-  try {
-    const { resumeText, jobText } = JSON.parse(event.body);
-    const apiKey = process.env.ANTHROPIC_API_KEY;
-
-    if (!apiKey) {
-      throw new Error('API key not configured');
-    }
-
-    console.log('Received resume length:', resumeText?.length);
-    console.log('Received job text length:', jobText?.length);
-
-    const requestBody = {
-      model: "claude-sonnet-4-20250514",
-      max_tokens: 4000,
-      messages: [{
-        role: "user",
-        content: `You are a professional resume optimization expert with knowledge of the latest 2025 ATS and resume best practices. Analyze the following resume against the job posting and provide detailed recommendations.
+  const text = await generateText(`You are a professional resume optimization expert with knowledge of the latest 2025 ATS and resume best practices. Analyze the following resume against the job posting and provide detailed recommendations.
 
 RESUME:
 ${resumeText}
@@ -75,47 +38,7 @@ Please provide:
 
 Format the bullet points clearly under each role name so they can be easily copied.
 
-Format your response with clear sections and actionable recommendations.`
-      }]
-    };
+Format your response with clear sections and actionable recommendations.`, { maxTokens: 4000 });
 
-    console.log('Calling Anthropic API...');
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01"
-      },
-      body: JSON.stringify(requestBody)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API error:', errorText);
-      throw new Error(`API request failed: ${response.status} - ${errorText}`);
-    }
-
-    const data = await response.json();
-    console.log('Analysis complete, response type:', data.type);
-    
-    return {
-      statusCode: 200,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(data)
-    };
-  } catch (error) {
-    console.error('Function error:', error);
-    return {
-      statusCode: 500,
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ error: error.message })
-    };
-  }
-};
+  return { text };
+});

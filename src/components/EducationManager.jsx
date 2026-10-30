@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getCurrentUserId } from '../lib/supabase';
 import { Plus, Trash2, GraduationCap, Edit } from 'lucide-react';
 
 export default function EducationManager({ darkMode = false }) {
@@ -18,9 +18,13 @@ export default function EducationManager({ darkMode = false }) {
   });
 
   const fetchEducation = async () => {
+    const userId = await getCurrentUserId();
+    if (!userId) return;
+
     const { data, error } = await supabase
       .from('education')
       .select('*')
+      .eq('user_id', userId)
       .order('end_date', { ascending: false });
 
     if (error) {
@@ -65,7 +69,9 @@ export default function EducationManager({ darkMode = false }) {
 
   const updateEducation = async (e) => {
     e.preventDefault();
-    
+    const userId = await getCurrentUserId();
+    if (!userId) return;
+
     const { error } = await supabase
       .from('education')
       .update({
@@ -78,7 +84,8 @@ export default function EducationManager({ darkMode = false }) {
         location: newEducation.location,
         honors: newEducation.honors
       })
-      .eq('id', editingId);
+      .eq('id', editingId)
+      .eq('user_id', userId);
 
     if (error) {
       alert('Error updating education: ' + error.message);
@@ -91,11 +98,14 @@ export default function EducationManager({ darkMode = false }) {
 
   const deleteEducation = async (id) => {
     if (!confirm('Delete this education entry?')) return;
+    const userId = await getCurrentUserId();
+    if (!userId) return;
 
     const { error } = await supabase
       .from('education')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (error) {
       alert('Error deleting: ' + error.message);

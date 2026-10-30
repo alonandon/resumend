@@ -4,7 +4,7 @@ Prioritized top to bottom. Foundation and security work comes first because the
 features later in the list depend on it (shared AI module, structured output,
 saved data).
 
-Status: `[ ]` not started · `[~]` in progress · `[x]` done
+Status: `[ ]` not started · `[~]` in progress · `[x]` done · `[-]` deferred
 
 ---
 
@@ -17,29 +17,39 @@ on load if `localStorage` is blocked, fake progress timers never get cleared,
 and the profile tab can spin forever. Fix these, get `npm run lint` passing, and
 add a CI check that runs lint and build on every PR.
 
-### 2. [ ] Secure the AI functions
+### 2. [-] Secure the AI functions
 The Netlify functions are open to anyone on the internet and spend our Anthropic
 credits. Require a signed-in user's token (or a strict guest allowance), limit
 CORS to our domain, and add per-user rate limits so one person or bot can't run
 up the bill.
 
-### 3. [ ] Verify database security (RLS) and scope every query
+_Deferred: needs a decision on guest access first (require sign-in, a small
+daily guest allowance, or one free guest analysis)._
+
+### 3. [x] Verify database security (RLS) and scope every query
 Most queries don't filter by user and rely on Supabase Row Level Security. Confirm
 RLS is on for every table (including `responsibilities` and `usage_logs`), commit
 the policies as migrations, and add explicit `user_id` filters as a second
 safeguard so one user can never see another's resume.
 
-### 4. [ ] Shared AI module, current model, and retries
+_Done in code: `supabase/migrations/20261030000000_enable_rls.sql` and user_id
+filters on every query. The migration must be run in the Supabase SQL editor._
+
+### 4. [x] Shared AI module, current model, and retries
 Move every Claude call into one shared module that uses the official SDK. This
 gives us one place to set the model (and upgrade from the outdated one), built-in
 retries when the API is busy, and removes about 160 lines of copy-pasted
 boilerplate across the four functions.
 
-### 5. [ ] Reliable function calls and timeouts
+### 5. [x] Reliable function calls and timeouts
 Long AI calls can hit Netlify's timeout and return an HTML error page, which the
 app then fails to parse and shows a confusing message. Add one client helper
 that checks responses and shows friendly errors, and raise the function timeouts
 (or move to background/streaming) so analyses finish.
+
+_Done: client helper, JSON errors from every function, and an AI timeout set
+below the function limit. Follow-up: confirm the site's Netlify function timeout,
+and move to background functions if analyses still run long._
 
 ### 6. [ ] Validate uploads and input sizes
 There are no limits on PDF size or text length, so large files fail with

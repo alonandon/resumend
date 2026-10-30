@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getCurrentUserId } from '../lib/supabase';
 import { Plus, Trash2, Tag } from 'lucide-react';
 
 export default function SkillsManager({ darkMode = false }) {
@@ -12,9 +12,13 @@ export default function SkillsManager({ darkMode = false }) {
   });
 
   const fetchSkills = async () => {
+    const userId = await getCurrentUserId();
+    if (!userId) return;
+
     const { data, error } = await supabase
       .from('skills')
       .select('*')
+      .eq('user_id', userId)
       .order('category', { ascending: true });
 
     if (error) {
@@ -64,11 +68,14 @@ export default function SkillsManager({ darkMode = false }) {
 
   const deleteSkill = async (id) => {
     if (!confirm('Delete this skill?')) return;
+    const userId = await getCurrentUserId();
+    if (!userId) return;
 
     const { error } = await supabase
       .from('skills')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (error) {
       alert('Error deleting: ' + error.message);

@@ -8,3 +8,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// Reads the signed-in user's id from the local session (no network call).
+// Row Level Security is the real enforcement; explicit user_id filters are a second safeguard.
+export const getCurrentUserId = async () => {
+  const { data: { session } } = await supabase.auth.getSession()
+  return session?.user?.id ?? null
+}

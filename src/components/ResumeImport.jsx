@@ -2,16 +2,13 @@ import React, { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Upload, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { trackUsage } from '../lib/trackUsage';
+import { callFunction } from '../lib/api';
 
 export default function ResumeImport({ onImportComplete }) {
   const [file, setFile] = useState(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
-
-  const API_BASE = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-    ? 'http://localhost:8888/.netlify/functions'
-    : '/.netlify/functions';
 
   const handleImport = async (e) => {
     e.preventDefault();
@@ -30,29 +27,13 @@ export default function ResumeImport({ onImportComplete }) {
         reader.readAsDataURL(file);
       });
 
-      const extractResponse = await fetch(`${API_BASE}/extract-pdf`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pdfData: base64Data })
-      });
-
-      const extractData = await extractResponse.json();
-      if (extractData.error) throw new Error(extractData.error);
-      
-      const resumeText = extractData.content[0].text;
+      const { text: resumeText } = await callFunction('extract-pdf', { pdfData: base64Data });
 
       // Step 2: Parse resume with AI
-      const parseResponse = await fetch(`${API_BASE}/parse-resume`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resumeText })
-      });
-
-      const parseData = await parseResponse.json();
-      if (parseData.error) throw new Error(parseData.error);
+      const { text: parsedText } = await callFunction('parse-resume', { resumeText });
 
       // Extract parsed experiences from AI response
-      let parsedContent = parseData.content[0].text;
+      let parsedContent = parsedText;
       
       // Remove markdown code blocks if present
       parsedContent = parsedContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');

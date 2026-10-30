@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabase, getCurrentUserId } from '../lib/supabase';
 import { Plus, Trash2, Briefcase, Edit } from 'lucide-react';
 import ResumeImport from './ResumeImport';
 import SkillsManager from './SkillsManager';
@@ -21,12 +21,16 @@ export default function ExperienceManager({ darkMode = false }) {
   const [responsibilities, setResponsibilities] = useState(['']);
 
   const fetchExperiences = async () => {
+    const userId = await getCurrentUserId();
+    if (!userId) return;
+
     const { data, error } = await supabase
       .from('experiences')
       .select(`
         *,
         responsibilities (*)
       `)
+      .eq('user_id', userId)
       .order('start_date', { ascending: false });
 
     if (error) {
@@ -99,11 +103,14 @@ export default function ExperienceManager({ darkMode = false }) {
 
   const deleteExperience = async (id) => {
     if (!confirm('Delete this experience?')) return;
+    const userId = await getCurrentUserId();
+    if (!userId) return;
 
     const { error } = await supabase
       .from('experiences')
       .delete()
-      .eq('id', id);
+      .eq('id', id)
+      .eq('user_id', userId);
 
     if (error) {
       alert('Error deleting: ' + error.message);
@@ -143,7 +150,9 @@ export default function ExperienceManager({ darkMode = false }) {
 
   const updateExperience = async (e) => {
     e.preventDefault();
-    
+    const userId = await getCurrentUserId();
+    if (!userId) return;
+
     const { error: expError } = await supabase
       .from('experiences')
       .update({
@@ -153,7 +162,8 @@ export default function ExperienceManager({ darkMode = false }) {
         end_date: newExperience.end_date || null,
         is_current: newExperience.is_current,
       })
-      .eq('id', editingId);
+      .eq('id', editingId)
+      .eq('user_id', userId);
 
     if (expError) {
       alert('Error updating experience: ' + expError.message);
