@@ -33,12 +33,14 @@ export default function ResumeOptimizer() {
   const [showInfo, setShowInfo] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [useAllExperiences, setUseAllExperiences] = useState(false);
-  const [optimizedBullets, setOptimizedBullets] = useState(null);
   const [generatingResume, setGeneratingResume] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     // Check localStorage for saved preference
-    const saved = localStorage.getItem('darkMode');
-    return saved ? JSON.parse(saved) : false;
+    try {
+      return JSON.parse(localStorage.getItem('darkMode')) === true;
+    } catch {
+      return false;
+    }
   });
 
   // Helper function to parse AI-generated bullets from results
@@ -212,7 +214,7 @@ export default function ResumeOptimizer() {
       );
       
       // Track usage
-      await trackUsage(user.id, 'resume_generated');
+      await trackUsage('resume_generated');
       
       alert('Resume generated successfully! Check your downloads folder.');
     } catch (error) {
@@ -240,7 +242,11 @@ export default function ResumeOptimizer() {
 
   // Save dark mode preference
   useEffect(() => {
-    localStorage.setItem('darkMode', JSON.stringify(darkMode));
+    try {
+      localStorage.setItem('darkMode', JSON.stringify(darkMode));
+    } catch {
+      // Storage can be unavailable (private mode, blocked site data)
+    }
     if (darkMode) {
       document.documentElement.classList.add('dark');
     } else {
@@ -389,6 +395,7 @@ export default function ResumeOptimizer() {
     setError('');
     setResults(null);
     setProcessingProgress('Preparing your data...');
+    const progressTimers = [];
 
     try {
       if (useAllExperiences) {
@@ -421,9 +428,9 @@ export default function ResumeOptimizer() {
         console.log('Skills count:', skillsData?.length);
         
         // Simulate progress updates
-        setTimeout(() => setProcessingProgress('Matching your experience to job requirements...'), 3000);
-        setTimeout(() => setProcessingProgress('Generating optimized bullet points...'), 8000);
-        setTimeout(() => setProcessingProgress('Finalizing recommendations...'), 15000);
+        progressTimers.push(setTimeout(() => setProcessingProgress('Matching your experience to job requirements...'), 3000));
+        progressTimers.push(setTimeout(() => setProcessingProgress('Generating optimized bullet points...'), 8000));
+        progressTimers.push(setTimeout(() => setProcessingProgress('Finalizing recommendations...'), 15000));
         
         const analysisResponse = await fetch(`${API_BASE}/optimize-with-experiences`, {
           method: "POST",
@@ -447,10 +454,6 @@ export default function ResumeOptimizer() {
         setResults(analysis);
         setProcessingProgress('');
 
-        // Parse and store optimized bullets
-        const parsedBullets = parseOptimizedBullets(analysis);
-        setOptimizedBullets(parsedBullets);
-
         // Track usage
         await trackUsage('optimize_resume_with_experiences', {
           job_title: finalJobText.substring(0, 100),
@@ -460,8 +463,8 @@ export default function ResumeOptimizer() {
 
       } else {
         setProcessingProgress('Analyzing your resume...');
-        setTimeout(() => setProcessingProgress('Comparing to job requirements...'), 2000);
-        setTimeout(() => setProcessingProgress('Generating recommendations...'), 5000);
+        progressTimers.push(setTimeout(() => setProcessingProgress('Comparing to job requirements...'), 2000));
+        progressTimers.push(setTimeout(() => setProcessingProgress('Generating recommendations...'), 5000));
         
         // Original analyze-resume function
         const analysisResponse = await fetch(`${API_BASE}/analyze-resume`, {
@@ -485,10 +488,6 @@ export default function ResumeOptimizer() {
         setResults(analysis);
         setProcessingProgress('');
 
-        // Parse and store optimized bullets
-        const parsedBullets = parseOptimizedBullets(analysis);
-        setOptimizedBullets(parsedBullets);
-
         // Track usage
         await trackUsage('optimize_resume', {
           job_title: finalJobText.substring(0, 100),
@@ -500,6 +499,7 @@ export default function ResumeOptimizer() {
       setError(`Analysis failed: ${err.message}`);
       setProcessingProgress('');
     } finally {
+      progressTimers.forEach(clearTimeout);
       setProcessing(false);
       setProcessingProgress('');
     }
@@ -1098,7 +1098,7 @@ Requirements:
                       
                       // Collect all bullet points including those in subsections
                       let allBulletPoints = [];
-                      contentLines.forEach((line, idx) => {
+                      contentLines.forEach((line) => {
                         const trimmed = line.trim();
                         if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
                           allBulletPoints.push(trimmed.replace(/^[*-]\s*/, '').replace(/\*\*/g, '').trim());
@@ -1247,13 +1247,10 @@ Requirements:
                   <button
                     onClick={() => {
                       setResults(null);
-                      setOptimizedBullets(null);
                       setResumeText('');
                       setResumeTextManual('');
                       setResumeFile(null);
-                      setJobText('');
                       setJobTextManual('');
-                      setJobUrl('');
                       setCopiedSections({});
                     }}
                     className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 sm:px-8 py-3 rounded-lg font-semibold shadow-md hover:shadow-lg transition w-full sm:w-auto"

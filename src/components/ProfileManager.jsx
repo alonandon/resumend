@@ -15,14 +15,13 @@ export default function ProfileManager({ darkMode = false }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
   const fetchProfile = async () => {
     setLoading(true);
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setLoading(false);
+      return;
+    }
 
     const { data, error } = await supabase
       .from('profiles')
@@ -37,6 +36,10 @@ export default function ProfileManager({ darkMode = false }) {
     }
     setLoading(false);
   };
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
 
   const saveProfile = async (e) => {
     e.preventDefault();

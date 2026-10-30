@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Upload, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { trackUsage } from '../lib/trackUsage';
 
-export default function ResumeImport({ onImportComplete, darkMode = false }) {
+export default function ResumeImport({ onImportComplete }) {
   const [file, setFile] = useState(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');

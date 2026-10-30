@@ -17,10 +17,6 @@ export default function EducationManager({ darkMode = false }) {
     honors: ''
   });
 
-  useEffect(() => {
-    fetchEducation();
-  }, []);
-
   const fetchEducation = async () => {
     const { data, error } = await supabase
       .from('education')
@@ -33,6 +29,10 @@ export default function EducationManager({ darkMode = false }) {
       setEducation(data);
     }
   };
+
+  useEffect(() => {
+    fetchEducation();
+  }, []);
 
   const addEducation = async (e) => {
     e.preventDefault();

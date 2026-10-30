@@ -271,7 +271,6 @@ export const generateHarvardResumePDF = async (profileData, educationData, exper
     // Display in columns
     let currentColumn = 0;
     let maxYInRow = yPos;
-    let startX = margins.left;
     let startY = yPos;
 
     categories.forEach(([category, skills], index) => {

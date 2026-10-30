@@ -1,18 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Plus, Trash2, Briefcase, Edit, Download, FileText, AlertCircle } from 'lucide-react';
+import { Plus, Trash2, Briefcase, Edit } from 'lucide-react';
 import ResumeImport from './ResumeImport';
 import SkillsManager from './SkillsManager';
 import ProfileManager from './ProfileManager';
 import EducationManager from './EducationManager';
-import { generateHarvardResumePDF } from '../lib/generateHarvardResume';
 
-export default function ExperienceManager({ optimizedBullets = null, darkMode = false }) {
+export default function ExperienceManager({ darkMode = false }) {
   const [activeTab, setActiveTab] = useState('profile');
   const [experiences, setExperiences] = useState([]);
   const [showAddForm, setShowAddForm] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [generatingResume, setGeneratingResume] = useState(false);
   const [newExperience, setNewExperience] = useState({
     company: '',
     job_title: '',
@@ -21,10 +19,6 @@ export default function ExperienceManager({ optimizedBullets = null, darkMode = 
     is_current: false,
   });
   const [responsibilities, setResponsibilities] = useState(['']);
-
-  useEffect(() => {
-    fetchExperiences();
-  }, []);
 
   const fetchExperiences = async () => {
     const { data, error } = await supabase
@@ -42,63 +36,9 @@ export default function ExperienceManager({ optimizedBullets = null, darkMode = 
     }
   };
 
-  const handleGenerateResume = async () => {
-    setGeneratingResume(true);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        alert('Please sign in to generate your resume');
-        setGeneratingResume(false);
-        return;
-      }
-
-      // Fetch all data
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (!profile) {
-        alert('Please complete your profile information first (Profile tab)');
-        setGeneratingResume(false);
-        return;
-      }
-
-      const { data: education } = await supabase
-        .from('education')
-        .select('*')
-        .order('end_date', { ascending: false });
-
-      const { data: experiences } = await supabase
-        .from('experiences')
-        .select(`
-          *,
-          responsibilities (*)
-        `)
-        .order('start_date', { ascending: false });
-
-      const { data: skills } = await supabase
-        .from('skills')
-        .select('*');
-
-      // Generate PDF with optimized bullets if available
-      await generateHarvardResumePDF(
-        profile, 
-        education || [], 
-        experiences || [], 
-        skills || [],
-        optimizedBullets
-      );
-      
-      alert('Resume generated successfully!');
-    } catch (error) {
-      console.error('Error generating resume:', error);
-      alert('Failed to generate resume. Please try again.');
-    } finally {
-      setGeneratingResume(false);
-    }
-  };
+  useEffect(() => {
+    fetchExperiences();
+  }, []);
 
   const addExperience = async (e) => {
     e.preventDefault();
@@ -323,7 +263,7 @@ export default function ExperienceManager({ optimizedBullets = null, darkMode = 
             </button>
           </div>
 
-          <ResumeImport onImportComplete={fetchExperiences} darkMode={darkMode} />
+          <ResumeImport onImportComplete={fetchExperiences} />
 
           {(showAddForm || editingId) && (
             <form onSubmit={editingId ? updateExperience : addExperience} className={`rounded-lg p-6 mb-6 border ${

@@ -24,6 +24,14 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+      // Flags the standard fetch-on-mount pattern; revisit if we adopt a data-fetching library
+      'react-hooks/set-state-in-effect': 'off',
+    },
+  },
+  {
+    files: ['netlify/functions/**/*.js'],
+    languageOptions: {
+      globals: globals.node,
     },
   },
 ])

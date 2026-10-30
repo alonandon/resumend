@@ -11,10 +11,6 @@ export default function SkillsManager({ darkMode = false }) {
     proficiency_level: 'Intermediate'
   });
 
-  useEffect(() => {
-    fetchSkills();
-  }, []);
-
   const fetchSkills = async () => {
     const { data, error } = await supabase
       .from('skills')
@@ -27,6 +23,10 @@ export default function SkillsManager({ darkMode = false }) {
       setSkills(data);
     }
   };
+
+  useEffect(() => {
+    fetchSkills();
+  }, []);
 
   const addSkill = async (e) => {
     e.preventDefault();
