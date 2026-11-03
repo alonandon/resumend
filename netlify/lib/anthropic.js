@@ -35,7 +35,15 @@ const toHttpError = (err) => {
   return err;
 };
 
+// The API's explanation describes the request parameters, not the user's content
+const apiReason = (err) => err?.error?.error?.message ?? err?.message ?? 'unknown';
+
+const logApiError = (err, note = '') => {
+  console.error(`Claude API error: status=${err?.status ?? 'none'} request_id=${err?.requestID ?? 'none'} type=${err?.constructor?.name} reason="${apiReason(err)}"${note}`);
+};
+
 const createMessage = async (content, { maxTokens, format }) => {
+  const messages = [{ role: 'user', content }];
   let response;
   try {
     response = await getClient().beta.messages.create({
@@ -45,11 +53,27 @@ const createMessage = async (content, { maxTokens, format }) => {
       // On a safety decline, the API retries on a fallback model in the same call
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
-      messages: [{ role: 'user', content }],
+      messages,
     });
   } catch (err) {
-    console.error(`Claude API error: status=${err?.status ?? 'none'} request_id=${err?.requestID ?? 'none'} type=${err?.constructor?.name}`);
-    throw toHttpError(err);
+    if (!(err instanceof Anthropic.BadRequestError)) {
+      logApiError(err);
+      throw toHttpError(err);
+    }
+    // If an optional setting (refusal fallback, effort) is what the API rejected,
+    // a plain request still works. Retry once without them.
+    logApiError(err, ' - retrying without optional settings');
+    try {
+      response = await getClient().messages.create({
+        model: MODEL,
+        max_tokens: maxTokens,
+        ...(format && { output_config: { format } }),
+        messages,
+      });
+    } catch (retryErr) {
+      logApiError(retryErr, ' - plain retry also failed');
+      throw toHttpError(retryErr);
+    }
   }
 
   if (response.stop_reason === 'refusal') {
