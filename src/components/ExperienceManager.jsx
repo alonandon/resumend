@@ -53,40 +53,15 @@ export default function ExperienceManager({ darkMode = false }) {
       return;
     }
 
-    const experienceData = {
-      ...newExperience,
-      user_id: user.id,
-      start_date: newExperience.start_date || null,
-      end_date: newExperience.end_date || null,
-    };
-    
-    const { data: expData, error: expError } = await supabase
-      .from('experiences')
-      .insert([experienceData])
-      .select()
-      .single();
+    // Saves the experience and its bullets together, or neither
+    const { error } = await supabase.rpc('create_experience', {
+      p_experience: newExperience,
+      p_responsibilities: responsibilities.filter(r => r.trim()),
+    });
 
-    if (expError) {
-      alert('Error adding experience: ' + expError.message);
+    if (error) {
+      alert('Error adding experience: ' + error.message);
       return;
-    }
-
-    const responsibilitiesToInsert = responsibilities
-      .filter(r => r.trim())
-      .map(r => ({
-        experience_id: expData.id,
-        description: r,
-      }));
-
-    if (responsibilitiesToInsert.length > 0) {
-      const { error: respError } = await supabase
-        .from('responsibilities')
-        .insert(responsibilitiesToInsert);
-
-      if (respError) {
-        alert('Error adding responsibilities: ' + respError.message);
-        return;
-      }
     }
 
     setNewExperience({
@@ -153,49 +128,16 @@ export default function ExperienceManager({ darkMode = false }) {
     const userId = await getCurrentUserId();
     if (!userId) return;
 
-    const { error: expError } = await supabase
-      .from('experiences')
-      .update({
-        company: newExperience.company,
-        job_title: newExperience.job_title,
-        start_date: newExperience.start_date || null,
-        end_date: newExperience.end_date || null,
-        is_current: newExperience.is_current,
-      })
-      .eq('id', editingId)
-      .eq('user_id', userId);
+    // Updates the experience and replaces its bullets together, or changes nothing
+    const { error } = await supabase.rpc('update_experience', {
+      p_experience_id: String(editingId),
+      p_experience: newExperience,
+      p_responsibilities: responsibilities.filter(r => r.trim()),
+    });
 
-    if (expError) {
-      alert('Error updating experience: ' + expError.message);
+    if (error) {
+      alert('Error updating experience: ' + error.message);
       return;
-    }
-
-    const { error: deleteError } = await supabase
-      .from('responsibilities')
-      .delete()
-      .eq('experience_id', editingId);
-
-    if (deleteError) {
-      alert('Error deleting old responsibilities: ' + deleteError.message);
-      return;
-    }
-
-    const responsibilitiesToInsert = responsibilities
-      .filter(r => r.trim())
-      .map(r => ({
-        experience_id: editingId,
-        description: r,
-      }));
-
-    if (responsibilitiesToInsert.length > 0) {
-      const { error: respError } = await supabase
-        .from('responsibilities')
-        .insert(responsibilitiesToInsert);
-
-      if (respError) {
-        alert('Error adding responsibilities: ' + respError.message);
-        return;
-      }
     }
 
     cancelEdit();

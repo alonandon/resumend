@@ -1,11 +1,19 @@
-import { createHandler, HttpError } from '../lib/http.js';
-import { generateText } from '../lib/anthropic.js';
+import { createHandler } from '../lib/http.js';
+import { generateJSON } from '../lib/anthropic.js';
+import { requireText } from '../lib/validate.js';
+import { STYLE_RULES, polishBullets, fixDashes } from '../lib/style.js';
+import { ANALYZE_SCHEMA, buildAnalyzeMarkdown } from '../lib/reports.js';
+import { LIMITS } from '../../shared/limits.js';
+
+// Skip the style rewrite pass if the first call ran long, to stay inside the function timeout
+const REWRITE_DEADLINE_MS = 12000;
 
 export const handler = createHandler('analyze-resume', async ({ resumeText, jobText }) => {
-  if (!resumeText?.trim()) throw new HttpError(400, 'Resume text is required.');
-  if (!jobText?.trim()) throw new HttpError(400, 'Job posting text is required.');
+  requireText(resumeText, 'Resume text', LIMITS.resumeChars);
+  requireText(jobText, 'Job posting', LIMITS.jobChars);
+  const startedAt = Date.now();
 
-  const text = await generateText(`You are a professional resume optimization expert with knowledge of the latest 2025 ATS and resume best practices. Analyze the following resume against the job posting and provide detailed recommendations.
+  const result = await generateJSON(`You are a resume coach. Compare the candidate's resume to the job posting and give specific, practical recommendations.
 
 RESUME:
 ${resumeText}
@@ -13,32 +21,33 @@ ${resumeText}
 JOB POSTING:
 ${jobText}
 
-Please provide:
+Fill in each field:
+- keyword_alignment: important keywords and phrases from the posting that should appear in the resume. Point out synonym mismatches (for example the resume says "managed" but the posting says "led") and say exactly which word to swap.
+- content_improvements: specific improvements to the resume's content, structure, and formatting.
+- missing_qualifications: qualifications or skills from the posting that are missing or understated in the resume.
+- strengths: parts of the resume that already match the posting well.
+- roles: for each role on the resume, its job_title, company, and its bullets rewritten to align with this posting.
 
-1. KEYWORD ALIGNMENT: Identify important keywords and phrases from the job posting that should appear in the resume. Look for synonym mismatches (e.g., "spearhead" vs "lead", "manage" vs "oversee") and suggest exact keyword replacements to improve ATS matching.
+RULES FOR REWRITTEN BULLETS:
+- Do not invent responsibilities, achievements, or metrics that are not in the original resume.
+- Only swap in keywords from the posting, reorder to put the most relevant part first, or lightly reword for clarity while keeping the same meaning.
+- Keep the same number of bullets as the original for each role.
+- Keep every number, metric, technology, and fact from the original exactly as written.
+- If a bullet already matches well, keep it nearly identical.
 
-2. CONTENT IMPROVEMENTS: Based on the latest best practices, suggest specific improvements to the resume content, structure, and formatting.
+Write each recommendation as one or two plain sentences.
 
-3. MISSING QUALIFICATIONS: Identify key qualifications or skills from the job posting that are missing or understated in the resume.
+${STYLE_RULES}`, { schema: ANALYZE_SCHEMA, maxTokens: 8000 });
 
-4. STRENGTH HIGHLIGHTS: Point out resume elements that strongly match the job requirements.
+  await polishBullets(
+    result.roles.flatMap((role) => role.bullets),
+    { allowedText: `${jobText}\n${resumeText}`, sourceText: resumeText },
+    { canRewrite: () => Date.now() - startedAt < REWRITE_DEADLINE_MS }
+  );
 
-5. READY-TO-USE BULLET POINTS: For each major experience/role on the resume, rewrite the existing bullet points to better align with this job posting. 
+  for (const key of ['keyword_alignment', 'content_improvements', 'missing_qualifications', 'strengths']) {
+    result[key] = result[key].map(fixDashes);
+  }
 
-**CRITICAL INSTRUCTIONS FOR BULLET POINTS:**
-- DO NOT invent or add responsibilities, achievements, or metrics that are not already present in the original resume
-- ONLY modify the existing bullet points by:
-  * Replacing synonyms with keywords from the job posting (e.g., change "managed" to "led" if the job posting uses "led")
-  * Reordering information to emphasize aspects most relevant to the job posting
-  * Slightly rewording for clarity or impact while maintaining the same core meaning
-- Keep the same number of bullet points as the original resume for each role
-- Preserve all specific numbers, metrics, technologies, and facts from the original resume exactly as written
-- If a bullet point already matches well, keep it nearly identical with only minor keyword adjustments
-- Do NOT add new accomplishments, projects, or responsibilities that weren't in the original resume
-
-Format the bullet points clearly under each role name so they can be easily copied.
-
-Format your response with clear sections and actionable recommendations.`, { maxTokens: 4000 });
-
-  return { text };
+  return { text: buildAnalyzeMarkdown(result) };
 });

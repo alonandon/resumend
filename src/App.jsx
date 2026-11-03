@@ -6,17 +6,9 @@ import ExperienceManager from './components/ExperienceManager';
 import { trackUsage } from './lib/trackUsage';
 import { generateHarvardResumePDF } from './lib/generateHarvardResume';
 import { callFunction } from './lib/api';
-
-console.log('Imports successful');
-console.log('Supabase:', supabase);
-console.log('Auth component:', Auth);
-
-// Test Supabase connection
-console.log('Supabase URL:', import.meta.env.VITE_SUPABASE_URL);
-console.log('Supabase client:', supabase);
+import { LIMITS, checkPdfFile, checkTextLength } from '../shared/limits.js';
 
 export default function ResumeOptimizer() {
-  console.log('ResumeOptimizer component rendering');
   const [session, setSession] = useState(null);
   const [resumeFile, setResumeFile] = useState(null);
   const [resumeTextManual, setResumeTextManual] = useState('');
@@ -34,6 +26,8 @@ export default function ResumeOptimizer() {
   const [showInfo, setShowInfo] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [useAllExperiences, setUseAllExperiences] = useState(false);
+  // AI bullets keyed by experience id, from the experience-library optimizer
+  const [optimizedBullets, setOptimizedBullets] = useState(null);
   const [generatingResume, setGeneratingResume] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     // Check localStorage for saved preference
@@ -43,102 +37,6 @@ export default function ResumeOptimizer() {
       return false;
     }
   });
-
-  // Helper function to parse AI-generated bullets from results
-  const parseOptimizedBullets = (resultsText) => {
-    if (!resultsText) return null;
-    
-    console.log('=== PARSING OPTIMIZED BULLETS ===');
-    console.log('Results text length:', resultsText.length);
-    console.log('First 500 chars:', resultsText.substring(0, 500));
-    
-    const bulletMap = {};
-    const allBullets = [];
-    
-    // Split by markdown headers
-    const sections = resultsText.split(/(?=#{1,3}\s)/);
-    console.log('Found sections:', sections.length);
-    
-    let inBulletPointsSection = false;
-    
-    sections.forEach((section, sectionIdx) => {
-      const lines = section.split('\n').filter(l => l.trim());
-      if (lines.length === 0) return;
-      
-      const header = lines[0].toLowerCase();
-      console.log(`\nSection ${sectionIdx} header:`, header.substring(0, 100));
-      
-      // Check if this is the main "optimized bullet points" section
-      const isBulletSectionHeader = 
-        (header.includes('bullet') && header.includes('point')) ||
-        header.includes('ready-to-use');
-      
-      if (isBulletSectionHeader) {
-        console.log('✓ Entering bullet points section!');
-        inBulletPointsSection = true;
-        return; // Continue to next section to get the actual bullets
-      }
-      
-      // Check if we've left the bullet points section (moved to next main section like "skills" or "recommendations")
-      if (inBulletPointsSection && 
-          (header.includes('5.') || header.includes('skill') || 
-           header.includes('6.') || header.includes('recommendation') ||
-           header.includes('7.'))) {
-        console.log('✗ Leaving bullet points section');
-        inBulletPointsSection = false;
-        return;
-      }
-      
-      // If we're in the bullet points section, collect bullets from all subsections
-      if (inBulletPointsSection) {
-        console.log(`  → Processing subsection for bullets`);
-        
-        // Extract all bullet points from this subsection
-        let bulletCount = 0;
-        for (let i = 1; i < lines.length; i++) {
-          const line = lines[i].trim();
-          
-          // Check if line is a bullet (starts with *, -, •, or is numbered like "1. ")
-          if (line.match(/^[*\-•]\s+/) || line.match(/^\d+\.\s+/)) {
-            // Clean up the bullet point
-            const cleanedBullet = line
-              .replace(/^[*\-•]\s*/, '')  // Remove bullet markers
-              .replace(/^\d+\.\s*/, '')    // Remove numbers
-              .replace(/\*\*/g, '')        // Remove bold markers
-              .trim();
-            
-            // Only include substantial bullets (more than 20 chars)
-            if (cleanedBullet && cleanedBullet.length > 20) {
-              allBullets.push(cleanedBullet);
-              bulletCount++;
-              console.log(`    ✓ Added bullet ${bulletCount} (${cleanedBullet.length} chars):`, cleanedBullet.substring(0, 60) + '...');
-            }
-          }
-        }
-        
-        if (bulletCount === 0) {
-          console.log(`    ✗ No bullets found in this subsection`);
-        }
-      }
-    });
-    
-    // Store all collected bullets
-    if (allBullets.length > 0) {
-      bulletMap['optimized'] = allBullets;
-      console.log(`\n✓ SUCCESS: Stored ${allBullets.length} total bullets`);
-      console.log('First 2 bullets:', allBullets.slice(0, 2));
-    } else {
-      console.log('\n✗ FAILED: No bullets found');
-      console.log('This might mean:');
-      console.log('1. Bullets are not in the expected format');
-      console.log('2. No subsections were found under "4. optimized bullet points"');
-      console.log('3. Need to see actual content - check results on screen');
-    }
-    
-    const result = Object.keys(bulletMap).length > 0 ? bulletMap : null;
-    console.log('Final result:', result ? `${allBullets.length} bullets found` : 'null');
-    return result;
-  };
 
   const handleGenerateResume = async () => {
     if (!session) {
@@ -155,13 +53,7 @@ export default function ResumeOptimizer() {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
-      // Parse bullets from results RIGHT NOW when generating
-      console.log('=== GENERATING RESUME ===');
-      console.log('Parsing bullets from results...');
-      const parsedBullets = parseOptimizedBullets(results);
-      console.log('Parsed bullets for resume:', parsedBullets);
-      
-      if (!parsedBullets) {
+      if (!optimizedBullets || Object.keys(optimizedBullets).length === 0) {
         alert('Could not find optimized bullet points in the recommendations. Please make sure the optimization completed successfully.');
         setGeneratingResume(false);
         return;
@@ -200,21 +92,13 @@ export default function ResumeOptimizer() {
         .select('*')
         .eq('user_id', user.id);
 
-      console.log('Generating PDF with data:', {
-        profile: profile?.full_name,
-        education: education?.length,
-        experiences: experiences?.length,
-        skills: skills?.length,
-        bullets: parsedBullets
-      });
-
-      // Generate PDF with optimized bullets parsed from results
+      // Experiences the optimizer selected use its bullets; the rest keep their originals
       await generateHarvardResumePDF(
         profile, 
         education || [], 
         experiences || [], 
         skills || [],
-        parsedBullets
+        optimizedBullets
       );
       
       // Track usage
@@ -332,7 +216,8 @@ export default function ResumeOptimizer() {
 
   const handleResumeUpload = async (e) => {
     const file = e.target.files[0];
-    if (file && file.type === 'application/pdf') {
+    const fileError = checkPdfFile(file);
+    if (!fileError) {
       setResumeFile(file);
       setError('');
       setProcessing(true);
@@ -346,7 +231,7 @@ export default function ResumeOptimizer() {
         setProcessing(false);
       }
     } else {
-      setError('Please upload a PDF file');
+      setError(fileError);
     }
   };
 
@@ -371,9 +256,17 @@ export default function ResumeOptimizer() {
       return;
     }
 
+    const lengthError = checkTextLength(finalJobText, 'The job posting', LIMITS.jobChars)
+      || (!useAllExperiences && checkTextLength(finalResumeText, 'Your resume', LIMITS.resumeChars));
+    if (lengthError) {
+      setError(lengthError);
+      return;
+    }
+
     setProcessing(true);
     setError('');
     setResults(null);
+    setOptimizedBullets(null);
     setProcessingProgress('Preparing your data...');
     const progressTimers = [];
 
@@ -402,24 +295,19 @@ export default function ResumeOptimizer() {
 
         setProcessingProgress('Analyzing job posting requirements...');
         
-        // Use optimize-with-experiences function
-        console.log('=== SENDING TO OPTIMIZER ===');
-        console.log('Job text being sent:', finalJobText ? `${finalJobText.substring(0, 100)}...` : 'EMPTY');
-        console.log('Job text length:', finalJobText?.length || 0);
-        console.log('Experiences count:', experiencesData?.length);
-        console.log('Skills count:', skillsData?.length);
         
         // Simulate progress updates
         progressTimers.push(setTimeout(() => setProcessingProgress('Matching your experience to job requirements...'), 3000));
         progressTimers.push(setTimeout(() => setProcessingProgress('Generating optimized bullet points...'), 8000));
         progressTimers.push(setTimeout(() => setProcessingProgress('Finalizing recommendations...'), 15000));
         
-        const { text: analysis } = await callFunction('optimize-with-experiences', {
+        const { text: analysis, bullets } = await callFunction('optimize-with-experiences', {
           experiences: experiencesData,
           skills: skillsData,
           jobText: finalJobText
         });
         setResults(analysis);
+        setOptimizedBullets(bullets);
         setProcessingProgress('');
 
         // Track usage
@@ -1054,7 +942,8 @@ Requirements:
                       let allBulletPoints = [];
                       contentLines.forEach((line) => {
                         const trimmed = line.trim();
-                        if (trimmed.startsWith('*') || trimmed.startsWith('-')) {
+                        const isRoleHeader = trimmed.startsWith('**') && trimmed.endsWith('**');
+                        if (!isRoleHeader && (trimmed.startsWith('*') || trimmed.startsWith('-'))) {
                           allBulletPoints.push(trimmed.replace(/^[*-]\s*/, '').replace(/\*\*/g, '').trim());
                         }
                       });
@@ -1201,6 +1090,7 @@ Requirements:
                   <button
                     onClick={() => {
                       setResults(null);
+                      setOptimizedBullets(null);
                       setResumeText('');
                       setResumeTextManual('');
                       setResumeFile(null);

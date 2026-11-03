@@ -1,8 +1,9 @@
-import { createHandler, HttpError } from '../lib/http.js';
+import { createHandler } from '../lib/http.js';
 import { generateText } from '../lib/anthropic.js';
+import { requirePdfData } from '../lib/validate.js';
 
 export const handler = createHandler('extract-pdf', async ({ pdfData }) => {
-  if (!pdfData) throw new HttpError(400, 'PDF data is required.');
+  requirePdfData(pdfData);
 
   const text = await generateText([
     {

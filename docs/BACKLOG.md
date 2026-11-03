@@ -51,33 +51,40 @@ _Done: client helper, JSON errors from every function, and an AI timeout set
 below the function limit. Follow-up: confirm the site's Netlify function timeout,
 and move to background functions if analyses still run long._
 
-### 6. [ ] Validate uploads and input sizes
+### 6. [x] Validate uploads and input sizes
 There are no limits on PDF size or text length, so large files fail with
 unclear errors. Check file type and size before upload, cap text length on the
 server, and tell the user exactly what went wrong.
 
-### 7. [ ] Human-sounding writing style
+### 7. [x] Human-sounding writing style
 AI-sounding text reduces trust. Add a shared writing-style block to every prompt:
 banned buzzwords, no em dashes, plain verbs, match the user's own voice, and
 **never invent metrics** (prompt the user to add real numbers instead). Add a
 post-generation check that catches violations and asks the model to rewrite
 them once.
 
-### 8. [ ] Structured AI output (no more markdown scraping)
+### 8. [x] Structured AI output (no more markdown scraping)
 Bullets and imported resumes are currently pulled out of free-form text with
 regex and `JSON.parse`, which breaks when the AI formats things differently.
 Switch to structured JSON output that is validated on the server, and add unit
 tests (Vitest) around the new parsing. This is required for item 11.
 
-### 9. [ ] Remove PII from logs and error messages
+_Also fixed: the resume PDF never used the AI bullets (they were stored under
+the wrong key), so it always printed the originals._
+
+### 9. [x] Remove PII from logs and error messages
 Resume content, job text, and Supabase details are written to the browser console
 and server logs, and raw API errors are sent to the browser. Remove debug logs,
 log only lengths and IDs, and return generic error messages.
 
-### 10. [ ] Make multi-step saves atomic
+### 10. [x] Make multi-step saves atomic
 Editing an experience deletes all its bullets and then re-adds them. If the
 second step fails, the bullets are lost. Resume import can also stop halfway and
 duplicate data on retry. Move these into single database transactions.
+
+_Done in code: `supabase/migrations/20261103000000_atomic_experience_saves.sql`.
+The migration must be run in Supabase, or adding, editing, and importing
+experiences will fail._
 
 ---
 

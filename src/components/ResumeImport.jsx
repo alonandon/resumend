@@ -3,12 +3,14 @@ import { supabase } from '../lib/supabase';
 import { Upload, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import { trackUsage } from '../lib/trackUsage';
 import { callFunction } from '../lib/api';
+import { checkPdfFile } from '../../shared/limits.js';
 
 export default function ResumeImport({ onImportComplete }) {
   const [file, setFile] = useState(null);
   const [importing, setImporting] = useState(false);
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState(false);
+  // { imported, skipped } after a successful import
+  const [success, setSuccess] = useState(null);
 
   const handleImport = async (e) => {
     e.preventDefault();
@@ -16,7 +18,7 @@ export default function ResumeImport({ onImportComplete }) {
 
     setImporting(true);
     setError('');
-    setSuccess(false);
+    setSuccess(null);
 
     try {
       // Step 1: Extract text from PDF
@@ -29,59 +31,24 @@ export default function ResumeImport({ onImportComplete }) {
 
       const { text: resumeText } = await callFunction('extract-pdf', { pdfData: base64Data });
 
-      // Step 2: Parse resume with AI
-      const { text: parsedText } = await callFunction('parse-resume', { resumeText });
-
-      // Extract parsed experiences from AI response
-      let parsedContent = parsedText;
-      
-      // Remove markdown code blocks if present
-      parsedContent = parsedContent.replace(/```json\n?/g, '').replace(/```\n?/g, '');
-      
-      const experiences = JSON.parse(parsedContent);
-
-      // Step 3: Get current user
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Not authenticated');
-
-      // Step 4: Insert experiences into database
-      for (const exp of experiences) {
-        const { data: expData, error: expError } = await supabase
-          .from('experiences')
-          .insert([{
-            user_id: user.id,
-            company: exp.company,
-            job_title: exp.job_title,
-            start_date: exp.start_date || null,
-            end_date: exp.end_date || null,
-            is_current: exp.is_current || false
-          }])
-          .select()
-          .single();
-
-        if (expError) throw expError;
-
-        // Insert responsibilities
-        if (exp.responsibilities && exp.responsibilities.length > 0) {
-          const responsibilities = exp.responsibilities.map(desc => ({
-            experience_id: expData.id,
-            description: desc
-          }));
-
-          const { error: respError } = await supabase
-            .from('responsibilities')
-            .insert(responsibilities);
-
-          if (respError) throw respError;
-        }
+      // Step 2: Parse resume with AI into structured experiences
+      const { experiences } = await callFunction('parse-resume', { resumeText });
+      if (!experiences.length) {
+        throw new Error("We couldn't find any work experience in that PDF.");
       }
 
-      setSuccess(true);
+      // Step 3: Save everything in one transaction (skips experiences you already have)
+      const { data: counts, error: importError } = await supabase.rpc('import_experiences', {
+        p_experiences: experiences
+      });
+      if (importError) throw importError;
+
+      setSuccess(counts);
       setFile(null);
 
-      // Track usage
       await trackUsage('import_resume', {
-        experiences_imported: experiences.length
+        experiences_imported: counts.imported,
+        experiences_skipped: counts.skipped
       });
 
       setTimeout(() => {
@@ -121,9 +88,11 @@ export default function ResumeImport({ onImportComplete }) {
                 className="hidden"
                 accept=".pdf"
                 onChange={(e) => {
-                  setFile(e.target.files[0]);
-                  setError('');
-                  setSuccess(false);
+                  const selected = e.target.files[0];
+                  const fileError = checkPdfFile(selected);
+                  setFile(fileError ? null : selected);
+                  setError(fileError || '');
+                  setSuccess(null);
                 }}
               />
             </div>
@@ -140,7 +109,10 @@ export default function ResumeImport({ onImportComplete }) {
         {success && (
           <div className="flex items-center gap-2 text-green-600 text-sm bg-green-50 p-3 rounded">
             <CheckCircle className="w-4 h-4" />
-            Resume imported successfully! Refreshing...
+            {success.imported > 0
+              ? `Imported ${success.imported} experience${success.imported === 1 ? '' : 's'}`
+              : 'No new experiences to import'}
+            {success.skipped > 0 && ` (skipped ${success.skipped} you already had)`}. Refreshing...
           </div>
         )}
 

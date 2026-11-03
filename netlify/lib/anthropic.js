@@ -35,28 +35,25 @@ const toHttpError = (err) => {
   return err;
 };
 
-// Sends one user message and returns the response text.
-export const generateText = async (content, { maxTokens }) => {
+const createMessage = async (content, { maxTokens, format }) => {
   let response;
   try {
     response = await getClient().beta.messages.create({
       model: MODEL,
       max_tokens: maxTokens,
-      output_config: { effort: EFFORT },
+      output_config: { effort: EFFORT, ...(format && { format }) },
       // On a safety decline, the API retries on a fallback model in the same call
       betas: ['server-side-fallback-2026-07-01'],
       fallbacks: 'default',
       messages: [{ role: 'user', content }],
     });
   } catch (err) {
+    console.error(`Claude API error: status=${err?.status ?? 'none'} request_id=${err?.requestID ?? 'none'} type=${err?.constructor?.name}`);
     throw toHttpError(err);
   }
 
   if (response.stop_reason === 'refusal') {
     throw new HttpError(422, 'The AI could not process this request. Please review the content and try again.');
-  }
-  if (response.stop_reason === 'max_tokens') {
-    console.warn(`Response hit max_tokens (${maxTokens}); output may be cut off`);
   }
 
   const text = response.content
@@ -67,5 +64,28 @@ export const generateText = async (content, { maxTokens }) => {
   if (!text) {
     throw new HttpError(502, 'The AI returned an empty response. Please try again.');
   }
+  return { text, truncated: response.stop_reason === 'max_tokens' };
+};
+
+// Sends one user message and returns the response text.
+export const generateText = async (content, { maxTokens }) => {
+  const { text, truncated } = await createMessage(content, { maxTokens });
+  if (truncated) console.warn(`Response hit max_tokens (${maxTokens}); output may be cut off`);
   return text;
+};
+
+// Sends one user message and returns an object matching the JSON schema.
+export const generateJSON = async (content, { schema, maxTokens }) => {
+  const { text, truncated } = await createMessage(content, {
+    maxTokens,
+    format: { type: 'json_schema', schema },
+  });
+  if (truncated) {
+    throw new HttpError(502, 'The AI response was too long and got cut off. Please try again with a shorter input.');
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new HttpError(502, 'The AI returned an unexpected format. Please try again.');
+  }
 };
